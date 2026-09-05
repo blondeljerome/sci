@@ -19,6 +19,7 @@ def render_settings():
             col1, col2 = st.columns(2)
             with col1:
                 sci_name = st.text_input("Dénomination sociale (Nom de la SCI) *", value=sci.get("name", "Ma SCI Immobilière"))
+                tax_regime = st.selectbox("Régime fiscal de la société", ["IS (Impôt sur les Sociétés)", "IR (Impôt sur le Revenu - 2072)"], index=0)
                 siren = st.text_input("Numéro SIREN", value=sci.get("siren", ""), placeholder="ex: 123 456 789")
                 address = st.text_input("Adresse du siège social", value=sci.get("address", ""))
                 postal_code = st.text_input("Code postal", value=sci.get("postal_code", ""))
@@ -37,11 +38,12 @@ def render_settings():
 
             submitted = st.form_submit_button("💾 Sauvegarder les coordonnées", type="primary")
             if submitted:
+                regime_clean = "IS" if "IS" in tax_regime else "IR"
                 execute_write("""
                     UPDATE sci_info
-                    SET name=?, siren=?, address=?, postal_code=?, city=?, manager_name=?, manager_email=?, manager_phone=?, iban=?, bic=?, updated_at=CURRENT_TIMESTAMP
+                    SET name=?, tax_regime=?, siren=?, address=?, postal_code=?, city=?, manager_name=?, manager_email=?, manager_phone=?, iban=?, bic=?, updated_at=CURRENT_TIMESTAMP
                     WHERE id = 1;
-                """, [sci_name, siren, address, postal_code, city, manager_name, manager_email, manager_phone, iban, bic])
+                """, [sci_name, regime_clean, siren, address, postal_code, city, manager_name, manager_email, manager_phone, iban, bic])
                 st.success("Informations de la SCI mises à jour avec succès !")
                 st.rerun()
 

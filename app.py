@@ -1,5 +1,5 @@
 """
-Point d'entrée principal de l'application Streamlit de Gestion Immobilière SCI.
+Point d'entrée principal de l'application Streamlit de Gestion Immobilière SCI à l'IS.
 """
 import streamlit as st
 from database import init_db, query_one, get_connection_info
@@ -9,26 +9,25 @@ from views.tenants import render_tenants
 from views.rents import render_rents
 from views.sci_expenses import render_sci_expenses
 from views.property_expenses import render_property_expenses
+from views.partner_accounts import render_partner_accounts
 from views.tax_report import render_tax_report
 from views.settings import render_settings
 
 # Configuration de la page Streamlit
 st.set_page_config(
-    page_title="Gestion Immobilière SCI",
+    page_title="Gestion Immobilière SCI à l'IS",
     page_icon="🏢",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Injection CSS pour une interface moderne et élégante
+# Injection CSS pour une interface moderne et soignée
 st.markdown("""
 <style>
-    /* Polices et typographie */
     html, body, [class*="css"] {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     
-    /* Cartes de métriques Streamlit */
     div[data-testid="stMetric"] {
         background: #ffffff;
         border: 1px solid #e2e8f0;
@@ -42,26 +41,22 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
     
-    /* Sidebar */
     section[data-testid="stSidebar"] {
         background-color: #f8fafc;
         border-right: 1px solid #e2e8f0;
     }
     
-    /* Boutons personnalisés */
     .stButton > button {
         border-radius: 8px;
         font-weight: 500;
         transition: all 0.2s ease;
     }
     
-    /* Titres */
     h1, h2, h3 {
         color: #0f172a;
         font-weight: 700;
     }
     
-    /* Badges personnalisés */
     .badge {
         display: inline-block;
         padding: 4px 10px;
@@ -79,6 +74,12 @@ st.markdown("""
         color: #d97706;
         border: 1px solid #fde68a;
     }
+    .badge-is {
+        background-color: #eff6ff;
+        color: #2563eb;
+        border: 1px solid #bfdbfe;
+        margin-top: 4px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -93,11 +94,12 @@ if "db_initialized" not in st.session_state:
 # Récupération des informations de la SCI
 sci_info = {}
 try:
-    sci_info = query_one("SELECT name, city FROM sci_info WHERE id = 1;") or {}
+    sci_info = query_one("SELECT name, city, tax_regime FROM sci_info WHERE id = 1;") or {}
 except Exception:
     pass
 
 sci_name = sci_info.get("name", "Ma SCI Immobilière")
+tax_regime = sci_info.get("tax_regime", "IS")
 
 # Barre latérale (Sidebar)
 with st.sidebar:
@@ -109,31 +111,34 @@ with st.sidebar:
     else:
         st.markdown('<span class="badge badge-local">💾 Mode Local SQLite</span>', unsafe_allow_html=True)
 
+    st.markdown(f'<br><span class="badge badge-is">⚖️ Régime : {tax_regime} (Impôt sur les Sociétés)</span>', unsafe_allow_html=True)
+
     st.markdown("---")
     st.markdown("**Navigation**")
     menu = st.radio(
         "Menu principal",
         [
             "📊 Tableau de Bord",
-            "🏢 Biens & Patrimoine",
+            "🏢 Biens & Amortissements",
             "👥 Locataires & Baux",
             "💳 Loyers & Quittances",
             "🏛️ Charges de la SCI",
-            "🏠 Charges des Lots & Réguls",
-            "📑 Synthèse Fiscale (2072)",
+            "🏠 Charges Lots & Réguls",
+            "🤝 Comptes Courants (CCA)",
+            "📑 Liasse Fiscale IS (2065)",
             "⚙️ Paramètres & Configuration"
         ],
         label_visibility="collapsed"
     )
 
     st.markdown("---")
-    st.caption("Application de Gestion SCI v1.0")
+    st.caption("Application de Gestion SCI à l'IS v2.0")
     st.caption("Développé avec Streamlit & Turso libSQL")
 
 # Routage des vues
 if menu == "📊 Tableau de Bord":
     render_dashboard()
-elif menu == "🏢 Biens & Patrimoine":
+elif menu == "🏢 Biens & Amortissements":
     render_properties()
 elif menu == "👥 Locataires & Baux":
     render_tenants()
@@ -141,9 +146,11 @@ elif menu == "💳 Loyers & Quittances":
     render_rents()
 elif menu == "🏛️ Charges de la SCI":
     render_sci_expenses()
-elif menu == "🏠 Charges des Lots & Réguls":
+elif menu == "🏠 Charges Lots & Réguls":
     render_property_expenses()
-elif menu == "📑 Synthèse Fiscale (2072)":
+elif menu == "🤝 Comptes Courants (CCA)":
+    render_partner_accounts()
+elif menu == "📑 Liasse Fiscale IS (2065)":
     render_tax_report()
 elif menu == "⚙️ Paramètres & Configuration":
     render_settings()

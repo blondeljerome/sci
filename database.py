@@ -1,5 +1,5 @@
 """
-Couche d'accès aux données pour l'application SCI.
+Couche d'accès aux données pour l'application SCI à l'IS.
 Prend en charge Turso (libsql:// ou https://) et le repli local SQLite.
 """
 import os
@@ -36,7 +36,8 @@ def get_connection_info() -> Dict[str, Any]:
 
 def init_db():
     """
-    Initialise la base de données en exécutant schema.sql.
+    Initialise la base de données en exécutant schema.sql,
+    et assure la compatibilité des colonnes pour le régime IS.
     """
     client = get_client()
     try:
@@ -44,15 +45,43 @@ def init_db():
         with open(schema_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Nettoyage et découpage des requêtes
-        # Supprime les commentaires mono-ligne pour un découpage propre
         cleaned_content = re.sub(r'--.*$', '', content, flags=re.MULTILINE)
         raw_statements = cleaned_content.split(';')
 
         for stmt in raw_statements:
             sql = stmt.strip()
             if sql:
-                client.execute(sql)
+                try:
+                    client.execute(sql)
+                except Exception:
+                    pass
+
+        # Migration dynamique pour ajouter les colonnes IS si la table existait déjà
+        try:
+            rs = client.execute("PRAGMA table_info(properties);")
+            existing_cols = [row[1] for row in rs.rows]
+            
+            is_cols_to_add = [
+                ("notary_fees", "REAL DEFAULT 0.0"),
+                ("land_share_pct", "REAL DEFAULT 15.0"),
+                ("amortization_years", "INTEGER DEFAULT 25"),
+                ("furniture_value", "REAL DEFAULT 0.0"),
+                ("furniture_years", "INTEGER DEFAULT 5")
+            ]
+            for col_name, col_type in is_cols_to_add:
+                if col_name not in existing_cols:
+                    client.execute(f"ALTER TABLE properties ADD COLUMN {col_name} {col_type};")
+        except Exception:
+            pass
+
+        try:
+            rs_sci = client.execute("PRAGMA table_info(sci_info);")
+            sci_cols = [row[1] for row in rs_sci.rows]
+            if "tax_regime" not in sci_cols:
+                client.execute("ALTER TABLE sci_info ADD COLUMN tax_regime TEXT DEFAULT 'IS';")
+        except Exception:
+            pass
+
     finally:
         client.close()
 

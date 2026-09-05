@@ -12,8 +12,9 @@ Application web moderne, intuitive et complète pour gérer administrativement, 
    - Solde net de trésorerie (Recettes - Dépenses).
    - Graphiques mensuels dynamiques (Plotly).
 
-2. **🏢 Gestion du Patrimoine (Biens & Lots)** :
-   - Fiches détaillées de chaque appartement, parking, local (adresse, surface, pièces, étage, quote-part de copropriété en tantièmes, prix d'achat, loyers cibles).
+2. **🏢 Gestion du Patrimoine & Amortissements IS** :
+   - Fiches détaillées de chaque appartement, parking, local (adresse, surface, pièces, étage, quote-part copropriété, prix d'achat, loyers cibles).
+   - **Calculateur d'Amortissement Comptable IS** : séparation du terrain (non amortissable, ~15-20%), calcul de la base amortissable du bâti (frais d'acquisition inclus) et du mobilier, annuités déductibles annuelles.
    - Suivi d'état : *Loué*, *Vacant*, *En travaux*.
 
 3. **👥 Gestion des Locataires & Baux** :
@@ -28,17 +29,26 @@ Application web moderne, intuitive et complète pour gérer administrativement, 
 
 5. **🏛️ Charges Globales de la SCI** :
    - Ventilation des charges de structure : Assurance PNO, honoraires comptables, frais bancaires, taxe foncière, échéances de prêt (intérêts / capital).
-   - Marquage des charges déductibles fiscalement.
+   - Déductibilité fiscale au compte de résultat IS.
 
 6. **🏠 Charges des Lots & Régularisation Annuelle** :
    - Suivi des charges spécifiques aux logements (appels de fonds syndic, eau, TEOM).
    - Distinction entre charges récupérables sur le locataire et non récupérables (propriétaire).
    - **Module de régularisation automatique** : calcul du solde différentiel entre les provisions perçues et les dépenses réelles récupérables.
 
-7. **📑 Synthèse Fiscale (Formulaire Cerfa 2072)** :
-   - Ventilation automatique des recettes brutes et des charges déductibles (frais de gestion, assurances, travaux d'entretien, intérêts d'emprunt).
-   - Calcul du résultat net foncier (bénéfice ou déficit foncier).
-   - Export CSV en 1 clic pour votre expert-comptable.
+7. **🤝 Comptes Courants d'Associés (CCA)** :
+   - Suivi des apports personnels (apport bancaire, travaux avancés par les associés).
+   - Suivi des remboursements effectués par la SCI vers les comptes personnels.
+   - Calcul en temps réel du **solde récupérable en franchise totale d'impôt**.
+
+8. **📑 Liasse Fiscale & Compte de Résultat IS (Cerfa 2065 / 2033)** :
+   - Produits d'exploitation (loyers nets perçus).
+   - Charges déductibles (assurances, entretien, comptabilité, charges d'immeuble).
+   - **Dotations aux Amortissements (DAA)** déductibles (bâti + meubles).
+   - Charges financières (intérêts d'emprunt).
+   - **Calcul automatique de l'IS** : 15% jusqu'à 42 500 € de bénéfice, 25% au-delà.
+   - Résultat net comptable de l'exercice.
+   - Export CSV conforme pour l'expert-comptable.
 
 8. **⚙️ Paramètres & Connexion Turso** :
    - Informations administratives de la SCI (SIREN, gérant, adresse, IBAN).
