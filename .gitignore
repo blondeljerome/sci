@@ -1,0 +1,24 @@
+# Secrets & Environment
+.streamlit/secrets.toml
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Local databases & uploads
+data/
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
