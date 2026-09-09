@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import date, datetime
 from database import query_rows, query_one, execute_write
 from utils.quittance import generate_quittance_html
+from utils.mailer import send_email
 
 def render_rents():
     st.markdown("## 💳 Gestion des Loyers & Quittances")
@@ -122,17 +123,30 @@ def render_rents():
                     st.markdown("---")
                     st.markdown(f"##### 🖨️ Prévisualisation de la Quittance — {p['first_name']} {p['last_name']}")
                     
-                    # Bouton de téléchargement direct du fichier HTML
+                    # Actions de téléchargement et d'envoi par email
                     filename = f"quittance_{p['last_name']}_{selected_year}_{selected_month:02d}.html"
-                    st.download_button(
-                        label="💾 Télécharger le fichier Quittance (HTML imprimable)",
-                        data=html_content,
-                        file_name=filename,
-                        mime="text/html",
-                        key=f"dl_quit_{p['id']}"
-                    )
-                    
+                    q_col1, q_col2 = st.columns(2)
+                    with q_col1:
+                        st.download_button(
+                            label="💾 Télécharger la Quittance (HTML/PDF)",
+                            data=html_content,
+                            file_name=filename,
+                            mime="text/html",
+                            key=f"dl_quit_{p['id']}"
+                        )
+                    with q_col2:
+                        if p.get("email"):
+                            if st.button(f"📧 Envoyer la quittance à {p['email']}", key=f"mail_quit_{p['id']}"):
+                                subj = f"Quittance de loyer - {month_names[selected_month-1]} {selected_year} - {sci_info.get('name', 'SCI')}"
+                                ok, msg = send_email(p["email"], subj, html_content, filename, html_content)
+                                if ok:
+                                    st.success(msg)
+                                else:
+                                    st.error(msg)
+                        else:
+                            st.caption("⚠️ Locataire sans adresse email renseignée.")
+
                     # Affichage interactif avec iframe
-                    components.html(html_content, height=650, scrolling=True)
+                    components.html(html_content, height=600, scrolling=True)
 
                 st.divider()

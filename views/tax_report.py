@@ -101,7 +101,18 @@ def render_tax_report():
     operating_result = gross_rental_income - total_operating_charges - total_daa
 
     # 5. CHARGES FINANCIERES (Intérêts d'emprunt + frais bancaires)
-    interets_emprunt = sum(e["amount"] for e in sci_expenses if "intérêt" in e["category"].lower() or "interet" in e["category"].lower())
+    from utils.loan import get_annual_loan_breakdown
+    interets_sci_expenses = sum(e["amount"] for e in sci_expenses if "intérêt" in e["category"].lower() or "interet" in e["category"].lower())
+    
+    # Récupération automatique des intérêts des prêts enregistrés
+    all_loans = query_rows("SELECT * FROM loans;")
+    loans_interest_calc = 0.0
+    for l in all_loans:
+        b = get_annual_loan_breakdown(l, tax_year)
+        loans_interest_calc += b["interest_paid"]
+
+    # On retient le montant calculé s'il est supérieur ou si aucune saisie manuelle n'a été faite
+    interets_emprunt = max(interets_sci_expenses, loans_interest_calc)
     frais_bancaires = sum(e["amount"] for e in sci_expenses if "bancaire" in e["category"].lower())
     total_financial_charges = interets_emprunt + frais_bancaires
 

@@ -8,7 +8,7 @@ def render_settings():
     st.markdown("## ⚙️ Paramètres & Configuration")
     st.caption("Gérez l'identité juridique de votre SCI et surveillez la connexion à votre base de données Turso.")
 
-    tab_sci, tab_db = st.tabs(["🏢 Identité de la SCI", "☁️ Base de Données & Turso"])
+    tab_sci, tab_db, tab_smtp = st.tabs(["🏢 Identité de la SCI", "☁️ Base de Données & Turso", "📧 Configuration Email (SMTP)"])
 
     # 1. IDENTITE DE LA SCI
     with tab_sci:
@@ -90,3 +90,59 @@ def render_settings():
         TURSO_AUTH_TOKEN = "votre_token_secret_turso"
         ```
         """)
+
+    # 3. CONFIGURATION SMTP
+    with tab_smtp:
+        st.markdown("#### Serveur d'Envoi d'Emails (SMTP)")
+        st.caption("Configurez votre serveur email (Gmail, Brevo, OVH, etc.) pour envoyer directement les quittances, avis d'échéance et relances à vos locataires.")
+
+        sci_smtp = query_one("SELECT smtp_server, smtp_port, smtp_username, smtp_password, smtp_use_tls, smtp_sender_email, manager_email FROM sci_info WHERE id = 1;") or {}
+
+        with st.form("form_smtp_config"):
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                server = st.text_input("Serveur hôte SMTP", value=sci_smtp.get("smtp_server", ""), placeholder="ex: smtp.gmail.com ou smtp-relay.brevo.com")
+                port = st.number_input("Port SMTP", value=int(sci_smtp.get("smtp_port") or 587), step=1)
+                use_tls = st.checkbox("Activer le chiffrement TLS / STARTTLS", value=bool(sci_smtp.get("smtp_use_tls", 1)))
+            with col_s2:
+                username = st.text_input("Identifiant / Email de connexion", value=sci_smtp.get("smtp_username", ""), placeholder="ex: contact@masci.fr")
+                password = st.text_input("Mot de passe ou mot de passe d'application", value=sci_smtp.get("smtp_password", ""), type="password", help="Pour Gmail, générez un 'Mot de passe d'application' dans la sécurité de votre compte Google.")
+                sender_email = st.text_input("Email expéditeur affiché", value=sci_smtp.get("smtp_sender_email", "") or sci_smtp.get("manager_email", ""), placeholder="ex: gestion@masci.fr")
+
+            save_smtp = st.form_submit_button("💾 Enregistrer la configuration SMTP", type="primary")
+            if save_smtp:
+                execute_write("""
+                    UPDATE sci_info
+                    SET smtp_server = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?, smtp_use_tls = ?, smtp_sender_email = ?
+                    WHERE id = 1;
+                """, [server.strip(), port, username.strip(), password.strip(), 1 if use_tls else 0, sender_email.strip()])
+                st.success("Paramètres SMTP enregistrés avec succès !")
+                st.rerun()
+
+        st.markdown("---")
+        st.markdown("#### 🧪 Tester la connexion email")
+        test_col1, test_col2 = st.columns([2, 1])
+        with test_col1:
+            test_recipient = st.text_input("Email de test (destinataire)", placeholder="votre.email@gmail.com", key="smtp_test_dest")
+        with test_col2:
+            st.write("")
+            st.write("")
+            if st.button("📤 Envoyer un email de test", key="btn_test_smtp"):
+                from utils.mailer import send_email
+                test_body = f"""
+                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #2563eb; border-radius: 8px;">
+                    <h2 style="color: #2563eb;">Test de configuration SMTP réussi ! 🎉</h2>
+                    <p>Votre application de gestion de SCI peut désormais expédier automatiquement :</p>
+                    <ul>
+                        <li>Les <strong>quittances de loyer</strong> dès validation d'encaissement</li>
+                        <li>Les <strong>avis d'échéance</strong> mensuels</li>
+                        <li>Les <strong>courriers de relance d'impayés</strong> et lettres de <strong>révision IRL</strong></li>
+                    </ul>
+                </div>
+                """
+                success, msg = send_email(test_recipient, "Test de connexion email - Application SCI", test_body)
+                if success:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+

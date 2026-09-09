@@ -37,7 +37,7 @@ def get_connection_info() -> Dict[str, Any]:
 def init_db():
     """
     Initialise la base de données en exécutant schema.sql,
-    et assure la compatibilité des colonnes pour le régime IS.
+    et assure la compatibilité des colonnes pour l'IS, les emprunts, l'IRL, les docs et le SMTP.
     """
     client = get_client()
     try:
@@ -56,29 +56,51 @@ def init_db():
                 except Exception:
                     pass
 
-        # Migration dynamique pour ajouter les colonnes IS si la table existait déjà
+        # 1. Migration properties (colonnes IS)
         try:
             rs = client.execute("PRAGMA table_info(properties);")
             existing_cols = [row[1] for row in rs.rows]
-            
-            is_cols_to_add = [
+            for col_name, col_type in [
                 ("notary_fees", "REAL DEFAULT 0.0"),
                 ("land_share_pct", "REAL DEFAULT 15.0"),
                 ("amortization_years", "INTEGER DEFAULT 25"),
                 ("furniture_value", "REAL DEFAULT 0.0"),
                 ("furniture_years", "INTEGER DEFAULT 5")
-            ]
-            for col_name, col_type in is_cols_to_add:
+            ]:
                 if col_name not in existing_cols:
                     client.execute(f"ALTER TABLE properties ADD COLUMN {col_name} {col_type};")
         except Exception:
             pass
 
+        # 2. Migration sci_info (SMTP + régime fiscal)
         try:
             rs_sci = client.execute("PRAGMA table_info(sci_info);")
             sci_cols = [row[1] for row in rs_sci.rows]
-            if "tax_regime" not in sci_cols:
-                client.execute("ALTER TABLE sci_info ADD COLUMN tax_regime TEXT DEFAULT 'IS';")
+            for col_name, col_type in [
+                ("tax_regime", "TEXT DEFAULT 'IS'"),
+                ("smtp_server", "TEXT DEFAULT ''"),
+                ("smtp_port", "INTEGER DEFAULT 587"),
+                ("smtp_username", "TEXT DEFAULT ''"),
+                ("smtp_password", "TEXT DEFAULT ''"),
+                ("smtp_use_tls", "INTEGER DEFAULT 1"),
+                ("smtp_sender_email", "TEXT DEFAULT ''")
+            ]:
+                if col_name not in sci_cols:
+                    client.execute(f"ALTER TABLE sci_info ADD COLUMN {col_name} {col_type};")
+        except Exception:
+            pass
+
+        # 3. Migration tenants (IRL)
+        try:
+            rs_t = client.execute("PRAGMA table_info(tenants);")
+            tenant_cols = [row[1] for row in rs_t.rows]
+            for col_name, col_type in [
+                ("irl_reference_quarter", "TEXT DEFAULT 'T3 2024'"),
+                ("irl_reference_value", "REAL DEFAULT 144.51"),
+                ("last_revision_date", "TEXT DEFAULT ''")
+            ]:
+                if col_name not in tenant_cols:
+                    client.execute(f"ALTER TABLE tenants ADD COLUMN {col_name} {col_type};")
         except Exception:
             pass
 

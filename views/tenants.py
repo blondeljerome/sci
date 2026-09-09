@@ -48,6 +48,9 @@ def render_tenants():
                         st.markdown(f"**Téléphone :** {t.get('phone') or 'Non renseigné'}")
                         st.markdown(f"**Garant / Caution :** {t.get('guarantor_info') or 'Aucun'}")
 
+                    if t.get("irl_reference_quarter"):
+                        rev_str = f" • Dernière révision : {t.get('last_revision_date')}" if t.get('last_revision_date') else ""
+                        st.caption(f"📈 Référence IRL : **{t.get('irl_reference_quarter')}** ({float(t.get('irl_reference_value', 144.51)):.2f}){rev_str}")
                     if t.get("notes"):
                         st.caption(f"📝 Notes : {t.get('notes')}")
 
@@ -109,6 +112,13 @@ def render_tenants():
             with c_f3:
                 guarantor_info = st.text_input("Garant / Caution solidaire", placeholder="Nom, lien, contact...")
 
+            st.markdown("##### 📈 Indexation Annuelle (Clause IRL du Bail)")
+            ci1, ci2 = st.columns(2)
+            with ci1:
+                irl_q = st.selectbox("Indice IRL de référence du contrat", ["T1 2024", "T2 2024", "T3 2024", "T4 2024", "T1 2025", "T2 2025"], index=2)
+            with ci2:
+                irl_v = st.number_input("Valeur de l'indice de référence", min_value=100.0, max_value=200.0, value=144.51, step=0.01)
+
             notes = st.text_area("Observations / Inventaire / État des lieux d'entrée", placeholder="Remise de 2 jeux de clés, badge d'accès...")
 
             submitted = st.form_submit_button("✅ Enregistrer le Locataire et Activer le Bail", type="primary")
@@ -118,9 +128,9 @@ def render_tenants():
                 else:
                     try:
                         tenant_id = execute_write("""
-                            INSERT INTO tenants (property_id, first_name, last_name, email, phone, lease_start, rent_amount, charges_provision, deposit_amount, is_active, guarantor_info, notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?);
-                        """, [selected_prop, first_name.strip(), last_name.strip(), email.strip(), phone.strip(), lease_start, rent_amount, charges_provision, deposit_amount, guarantor_info, notes])
+                            INSERT INTO tenants (property_id, first_name, last_name, email, phone, lease_start, rent_amount, charges_provision, deposit_amount, is_active, guarantor_info, irl_reference_quarter, irl_reference_value, notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?);
+                        """, [selected_prop, first_name.strip(), last_name.strip(), email.strip(), phone.strip(), lease_start, rent_amount, charges_provision, deposit_amount, guarantor_info, irl_q, irl_v, notes])
 
                         # Mettre le bien en statut "loue"
                         if selected_prop:

@@ -7,9 +7,12 @@ from views.dashboard import render_dashboard
 from views.properties import render_properties
 from views.tenants import render_tenants
 from views.rents import render_rents
+from views.loans import render_loans
 from views.sci_expenses import render_sci_expenses
 from views.property_expenses import render_property_expenses
 from views.partner_accounts import render_partner_accounts
+from views.legal import render_legal
+from views.documents import render_documents
 from views.tax_report import render_tax_report
 from views.settings import render_settings
 
@@ -122,9 +125,12 @@ with st.sidebar:
             "🏢 Biens & Amortissements",
             "👥 Locataires & Baux",
             "💳 Loyers & Quittances",
+            "🏦 Emprunts Bancaires",
             "🏛️ Charges de la SCI",
             "🏠 Charges Lots & Réguls",
             "🤝 Comptes Courants (CCA)",
+            "📄 Documents & Juridique",
+            "📎 Coffre-fort Numérique (GED)",
             "📑 Liasse Fiscale IS (2065)",
             "⚙️ Paramètres & Configuration"
         ],
@@ -132,7 +138,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.caption("Application de Gestion SCI à l'IS v2.0")
+    st.caption("Application de Gestion SCI à l'IS v2.1")
     st.caption("Développé avec Streamlit & Turso libSQL")
 
 # Routage des vues
@@ -144,12 +150,18 @@ elif menu == "👥 Locataires & Baux":
     render_tenants()
 elif menu == "💳 Loyers & Quittances":
     render_rents()
+elif menu == "🏦 Emprunts Bancaires":
+    render_loans()
 elif menu == "🏛️ Charges de la SCI":
     render_sci_expenses()
 elif menu == "🏠 Charges Lots & Réguls":
     render_property_expenses()
 elif menu == "🤝 Comptes Courants (CCA)":
     render_partner_accounts()
+elif menu == "📄 Documents & Juridique":
+    render_legal()
+elif menu == "📎 Coffre-fort Numérique (GED)":
+    render_documents()
 elif menu == "📑 Liasse Fiscale IS (2065)":
     render_tax_report()
 elif menu == "⚙️ Paramètres & Configuration":

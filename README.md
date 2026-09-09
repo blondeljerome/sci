@@ -25,30 +25,46 @@ Application web moderne, intuitive et complète pour gérer administrativement, 
 4. **💳 Loyers, Encaissements & Quittances de Loyer** :
    - Génération en 1 clic des échéances de loyers pour tous les locataires actifs.
    - Validation rapide des règlements (virement, chèque, prélèvement).
-   - Génération et aperçu instantané de **quittances de loyer conformes à la loi de 1989**, avec bouton d'impression / téléchargement en PDF.
+   - Génération et aperçu instantané de **quittances de loyer conformes à la loi de 1989**, avec bouton d'impression / téléchargement en PDF et **bouton d'envoi direct par email**.
 
-5. **🏛️ Charges Globales de la SCI** :
-   - Ventilation des charges de structure : Assurance PNO, honoraires comptables, frais bancaires, taxe foncière, échéances de prêt (intérêts / capital).
+5. **🏦 Emprunts Bancaires & Tableaux d'Amortissement** :
+   - Suivi des financements bancaires de la SCI (capital emprunté, taux, durée, assurance).
+   - Génération automatique du tableau d'amortissement mois par mois et synthèse annuelle.
+   - **Ventilation comptable automatique** : les intérêts d'emprunt sont automatiquement injectés en charges financières déductibles dans la Liasse Fiscale IS 2065.
+
+6. **🏛️ Charges Globales de la SCI** :
+   - Ventilation des charges de structure : Assurance PNO, honoraires comptables, frais bancaires, taxe foncière, échéances de prêt.
    - Déductibilité fiscale au compte de résultat IS.
 
-6. **🏠 Charges des Lots & Régularisation Annuelle** :
+7. **🏠 Charges des Lots & Régularisation Annuelle** :
    - Suivi des charges spécifiques aux logements (appels de fonds syndic, eau, TEOM).
    - Distinction entre charges récupérables sur le locataire et non récupérables (propriétaire).
    - **Module de régularisation automatique** : calcul du solde différentiel entre les provisions perçues et les dépenses réelles récupérables.
 
-7. **🤝 Comptes Courants d'Associés (CCA)** :
+8. **🤝 Comptes Courants d'Associés (CCA)** :
    - Suivi des apports personnels (apport bancaire, travaux avancés par les associés).
    - Suivi des remboursements effectués par la SCI vers les comptes personnels.
    - Calcul en temps réel du **solde récupérable en franchise totale d'impôt**.
 
-8. **📑 Liasse Fiscale & Compte de Résultat IS (Cerfa 2065 / 2033)** :
-   - Produits d'exploitation (loyers nets perçus).
-   - Charges déductibles (assurances, entretien, comptabilité, charges d'immeuble).
-   - **Dotations aux Amortissements (DAA)** déductibles (bâti + meubles).
-   - Charges financières (intérêts d'emprunt).
-   - **Calcul automatique de l'IS** : 15% jusqu'à 42 500 € de bénéfice, 25% au-delà.
-   - Résultat net comptable de l'exercice.
-   - Export CSV conforme pour l'expert-comptable.
+9. **📄 Générateur de Documents Juridiques & Administratifs** :
+   - **Avis d'échéance (Appels de loyer)** personnalisés avec coordonnées bancaires IBAN de la SCI.
+   - **Relances d'impayés graduées** : Relance amiable (J+7) et Mise en demeure sous huitaine avec clause résolutoire (J+21).
+   - **Indexation Annuelle des Loyers (IRL INSEE)** : Table officielle des indices, simulateur et génération de la lettre de révision légale prête à l'envoi.
+   - **Procès-Verbal d'Assemblée Générale Ordinaire (PV d'AGO)** : Document légal annuel complet pré-rempli avec les chiffres de l'exercice IS pour l'approbation des comptes.
+
+10. **📎 Coffre-fort Numérique (GED)** :
+    - Espace de stockage et de classement dématérialisé pour baux signés, états des lieux, diagnostics, attestations d'assurance et factures.
+
+11. **✉️ Envoi d'Emails en 1 Clic (SMTP)** :
+    - Connecteur SMTP configurable (Gmail, Brevo, OVH, etc.) pour expédier quittances, avis et relances en 1 clic.
+
+12. **📑 Liasse Fiscale & Compte de Résultat IS (Cerfa 2065 / 2033)** :
+    - Produits d'exploitation (loyers nets perçus).
+    - Charges déductibles (assurances, entretien, comptabilité, charges d'immeuble).
+    - **Dotations aux Amortissements (DAA)** déductibles (bâti + meubles).
+    - Charges financières (intérêts d'emprunt calculés automatiquement).
+    - **Calcul automatique de l'IS** : 15% jusqu'à 42 500 € de bénéfice, 25% au-delà.
+    - Résultat net comptable de l'exercice et export CSV pour expert-comptable.
 
 8. **⚙️ Paramètres & Connexion Turso** :
    - Informations administratives de la SCI (SIREN, gérant, adresse, IBAN).

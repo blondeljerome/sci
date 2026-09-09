@@ -1,6 +1,6 @@
--- Schéma pour la gestion de SCI à l'IS (Impôt sur les Sociétés) avec Turso / SQLite
+-- Schéma complet pour la gestion de SCI à l'IS (Impôt sur les Sociétés) avec Turso / SQLite
 
--- 1. Informations générales sur la SCI
+-- 1. Informations générales sur la SCI & Paramètres SMTP
 CREATE TABLE IF NOT EXISTS sci_info (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     name TEXT NOT NULL DEFAULT 'Ma SCI Immobilière',
@@ -14,6 +14,13 @@ CREATE TABLE IF NOT EXISTS sci_info (
     manager_phone TEXT DEFAULT '',
     iban TEXT DEFAULT '',
     bic TEXT DEFAULT '',
+    -- Configuration SMTP pour l'envoi d'emails
+    smtp_server TEXT DEFAULT '',
+    smtp_port INTEGER DEFAULT 587,
+    smtp_username TEXT DEFAULT '',
+    smtp_password TEXT DEFAULT '',
+    smtp_use_tls INTEGER DEFAULT 1,
+    smtp_sender_email TEXT DEFAULT '',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -47,7 +54,7 @@ CREATE TABLE IF NOT EXISTS properties (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Locataires
+-- 3. Locataires (avec paramètres IRL)
 CREATE TABLE IF NOT EXISTS tenants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     property_id INTEGER,
@@ -62,6 +69,10 @@ CREATE TABLE IF NOT EXISTS tenants (
     deposit_amount REAL DEFAULT 0.0, -- Dépôt de garantie versé
     is_active INTEGER DEFAULT 1, -- 1 = locataire actuel, 0 = ancien locataire
     guarantor_info TEXT DEFAULT '',
+    -- Paramètres d'indexation IRL
+    irl_reference_quarter TEXT DEFAULT 'T3 2024', -- Trimestre de référence du bail
+    irl_reference_value REAL DEFAULT 144.51,      -- Valeur de l'indice de référence
+    last_revision_date TEXT DEFAULT '',           -- Date de la dernière révision YYYY-MM-DD
     notes TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE SET NULL
@@ -89,7 +100,6 @@ CREATE TABLE IF NOT EXISTS rent_payments (
     FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE CASCADE
 );
 
--- Contrainte d'unicité pour une période donnée et un locataire
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rent_tenant_period 
 ON rent_payments(tenant_id, period_year, period_month);
 
@@ -116,8 +126,8 @@ CREATE TABLE IF NOT EXISTS property_expenses (
     description TEXT NOT NULL,
     amount REAL NOT NULL,
     is_recoverable INTEGER DEFAULT 0, -- 1 = Récupérable auprès du locataire, 0 = Non récupérable (déductible IS)
-    tenant_id INTEGER, -- Optionnel : rattaché à un locataire pour le calcul de régularisation
-    is_regularized INTEGER DEFAULT 0, -- 1 si déjà régularisé auprès du locataire
+    tenant_id INTEGER,
+    is_regularized INTEGER DEFAULT 0,
     invoice_ref TEXT DEFAULT '',
     notes TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -128,23 +138,71 @@ CREATE TABLE IF NOT EXISTS property_expenses (
 -- 7. Comptes Courants d'Associés (CCA) pour SCI à l'IS
 CREATE TABLE IF NOT EXISTS partner_accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    partner_name TEXT NOT NULL, -- Nom de l'associé titulaire du compte courant
-    date TEXT NOT NULL,         -- Date du mouvement YYYY-MM-DD
-    type TEXT NOT NULL,         -- 'apport' (injecté dans la SCI) ou 'remboursement' (retiré par l'associé)
-    amount REAL NOT NULL,       -- Montant en euros
-    description TEXT NOT NULL,  -- Description (ex: Apport personnel achat #101, Paiement facture travaux)
+    partner_name TEXT NOT NULL,
+    date TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'apport' ou 'remboursement'
+    amount REAL NOT NULL,
+    description TEXT NOT NULL,
     notes TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Index pour optimiser les requêtes fréquentes
+-- 8. Emprunts Bancaires & Crédits Immobiliers
+CREATE TABLE IF NOT EXISTS loans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    property_id INTEGER, -- Optionnel : rattaché à un bien spécifique
+    bank_name TEXT NOT NULL,
+    loan_reference TEXT DEFAULT '',
+    start_date TEXT NOT NULL, -- YYYY-MM-DD (date de première mensualité)
+    amount REAL NOT NULL, -- Capital emprunté en euros
+    annual_interest_rate REAL NOT NULL, -- Taux d'intérêt annuel en % (ex: 3.15)
+    duration_months INTEGER NOT NULL, -- Durée en mois (ex: 240 pour 20 ans)
+    monthly_insurance REAL DEFAULT 0.0, -- Assurance mensuelle en euros
+    notes TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE SET NULL
+);
+
+-- 9. Indices Trimestriels de Référence des Loyers (IRL INSEE)
+CREATE TABLE IF NOT EXISTS irl_indices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quarter TEXT UNIQUE NOT NULL, -- ex: 'T1 2023', 'T2 2023', 'T3 2023', 'T4 2023', 'T1 2024', etc.
+    value REAL NOT NULL, -- Valeur de l'indice
+    published_date TEXT DEFAULT '' -- Date de publication au JO
+);
+
+-- Insertion des indices IRL récents officiels de l'INSEE
+INSERT OR IGNORE INTO irl_indices (quarter, value, published_date) VALUES 
+('T1 2023', 138.61, '2023-04-14'),
+('T2 2023', 140.59, '2023-07-13'),
+('T3 2023', 141.03, '2023-10-13'),
+('T4 2023', 142.06, '2024-01-16'),
+('T1 2024', 143.46, '2024-04-12'),
+('T2 2024', 145.17, '2024-07-12'),
+('T3 2024', 144.51, '2024-10-15'),
+('T4 2024', 144.82, '2025-01-16'),
+('T1 2025', 145.45, '2025-04-15');
+
+-- 10. Coffre-fort Numérique & Gestion Électronique des Documents (GED)
+CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL, -- 'Bail & État des lieux', 'Assurance', 'Diagnostic', 'Facture / Devis', 'Statuts & Kbis', 'Autre'
+    entity_type TEXT NOT NULL, -- 'property', 'tenant', 'sci', 'loan'
+    entity_id INTEGER, -- Identifiant de l'entité liée
+    filename TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size INTEGER DEFAULT 0,
+    notes TEXT DEFAULT '',
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index
 CREATE INDEX IF NOT EXISTS idx_properties_status ON properties(status);
 CREATE INDEX IF NOT EXISTS idx_tenants_property ON tenants(property_id);
 CREATE INDEX IF NOT EXISTS idx_tenants_active ON tenants(is_active);
 CREATE INDEX IF NOT EXISTS idx_rent_payments_date ON rent_payments(period_year, period_month);
-CREATE INDEX IF NOT EXISTS idx_rent_payments_status ON rent_payments(status);
 CREATE INDEX IF NOT EXISTS idx_sci_expenses_date ON sci_expenses(date);
 CREATE INDEX IF NOT EXISTS idx_property_expenses_property ON property_expenses(property_id);
-CREATE INDEX IF NOT EXISTS idx_property_expenses_date ON property_expenses(date);
 CREATE INDEX IF NOT EXISTS idx_partner_accounts_name ON partner_accounts(partner_name);
-CREATE INDEX IF NOT EXISTS idx_partner_accounts_date ON partner_accounts(date);
+CREATE INDEX IF NOT EXISTS idx_loans_property ON loans(property_id);
+CREATE INDEX IF NOT EXISTS idx_documents_entity ON documents(entity_type, entity_id);
