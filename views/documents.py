@@ -6,15 +6,14 @@ Stockage, classement et consultation des pièces justificatives de la SCI :
 - Attestations d'assurance
 - Factures de travaux & devis
 - Statuts & Kbis de la SCI
+
+Les fichiers sont stockés sur Cloudinary (stockage cloud persistant).
 """
-import os
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 from database import query_rows, query_one, execute_write
-
-DOCS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "documents"))
-os.makedirs(DOCS_DIR, exist_ok=True)
+from utils import storage
 
 CATEGORIES_GED = [
     "Bail & État des lieux",
@@ -64,7 +63,8 @@ def render_documents():
             for doc in filtered:
                 size_kb = doc.get("file_size", 0) / 1024.0
                 size_str = f"{size_kb:.1f} Ko" if size_kb < 1024 else f"{size_kb/1024.0:.2f} Mo"
-                file_path = doc.get("file_path", "")
+                file_url = doc.get("file_path", "")          # URL Cloudinary (ou chemin legacy)
+                public_id = doc.get("cloudinary_public_id", "")
 
                 with st.container():
                     c1, c2, c3 = st.columns([3, 1, 1])
@@ -75,25 +75,30 @@ def render_documents():
                             st.caption(f"📝 Notes : {doc['notes']}")
                     with c2:
                         st.caption(f"Taille : {size_str}")
-                        if os.path.exists(file_path):
-                            with open(file_path, "rb") as f:
-                                st.download_button(
-                                    label="⬇️ Télécharger",
-                                    data=f.read(),
-                                    file_name=doc["filename"],
-                                    key=f"dl_doc_{doc['id']}"
-                                )
+                        if file_url and file_url.startswith("http"):
+                            # Fichier Cloudinary : lien de téléchargement direct
+                            st.link_button("⬇️ Télécharger", url=file_url)
+                        elif file_url:
+                            # Legacy : fichier local (ancien enregistrement)
+                            import os
+                            if os.path.exists(file_url):
+                                with open(file_url, "rb") as f:
+                                    st.download_button(
+                                        label="⬇️ Télécharger",
+                                        data=f.read(),
+                                        file_name=doc["filename"],
+                                        key=f"dl_doc_{doc['id']}"
+                                    )
+                            else:
+                                st.warning("Fichier introuvable")
                         else:
                             st.warning("Fichier introuvable")
                     with c3:
                         st.write("")
                         if st.button("🗑️ Supprimer", key=f"del_doc_{doc['id']}", type="secondary"):
-                            # Supprimer le fichier disque
-                            if os.path.exists(file_path):
-                                try:
-                                    os.remove(file_path)
-                                except Exception:
-                                    pass
+                            # Supprimer depuis Cloudinary si on a le public_id
+                            if public_id:
+                                storage.delete_file(public_id)
                             execute_write("DELETE FROM documents WHERE id = ?;", [doc["id"]])
                             st.warning("Document supprimé.")
                             st.rerun()
@@ -103,7 +108,18 @@ def render_documents():
     # 2. TELEVERSER UN DOCUMENT
     with tab_upload:
         st.markdown("#### Téléversement de Pièce Justificative")
-        
+
+        # Vérification que Cloudinary est configuré
+        from config import get_cloudinary_credentials
+        cloud_name, _, _ = get_cloudinary_credentials()
+        if not cloud_name:
+            st.error(
+                "⚠️ **Cloudinary n'est pas configuré.**\n\n"
+                "Ajoutez `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` et `CLOUDINARY_API_SECRET` "
+                "dans vos secrets Streamlit ou vos variables d'environnement."
+            )
+            return
+
         # Entités pour liaison
         all_props = query_rows("SELECT id, name FROM properties ORDER BY name ASC;")
         all_tenants = query_rows("SELECT id, first_name, last_name FROM tenants WHERE is_active = 1;")
@@ -147,16 +163,15 @@ def render_documents():
                 else:
                     try:
                         filename = custom_name.strip() if custom_name.strip() else uploaded_file.name
-                        # Éviter les conflits de nom sur le disque
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        safe_filename = f"{timestamp}_{uploaded_file.name}"
-                        dest_path = os.path.join(DOCS_DIR, safe_filename)
 
-                        # Écriture sur disque
-                        with open(dest_path, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
+                        # Upload vers Cloudinary
+                        with st.spinner("Téléversement vers Cloudinary en cours…"):
+                            file_bytes = uploaded_file.getbuffer()
+                            public_id, secure_url, file_size = storage.upload_file(
+                                bytes(file_bytes),
+                                uploaded_file.name,
+                            )
 
-                        file_size = os.path.getsize(dest_path)
                         ent_type_map = {
                             "SCI générale": "sci",
                             "Un Bien immobilier": "property",
@@ -165,11 +180,14 @@ def render_documents():
                         }
 
                         execute_write("""
-                            INSERT INTO documents (category, entity_type, entity_id, filename, file_path, file_size, notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?);
-                        """, [category, ent_type_map[entity_choice], entity_id, filename, dest_path, file_size, notes.strip()])
+                            INSERT INTO documents (category, entity_type, entity_id, filename, file_path, cloudinary_public_id, file_size, notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                        """, [category, ent_type_map[entity_choice], entity_id, filename, secure_url, public_id, file_size, notes.strip()])
 
                         st.success(f"Document **'{filename}'** téléversé avec succès dans le coffre-fort !")
                         st.rerun()
+                    except RuntimeError as e:
+                        st.error(str(e))
                     except Exception as e:
-                        st.error(f"Erreur lors de l'enregistrement : {e}")
+                        st.error(f"Erreur lors du téléversement : {e}")
+

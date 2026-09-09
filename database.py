@@ -104,6 +104,15 @@ def init_db():
         except Exception:
             pass
 
+        # 4. Migration documents (Cloudinary)
+        try:
+            rs_d = client.execute("PRAGMA table_info(documents);")
+            doc_cols = [row[1] for row in rs_d.rows]
+            if "cloudinary_public_id" not in doc_cols:
+                client.execute("ALTER TABLE documents ADD COLUMN cloudinary_public_id TEXT DEFAULT '';")
+        except Exception:
+            pass
+
     finally:
         client.close()
 

@@ -190,7 +190,8 @@ CREATE TABLE IF NOT EXISTS documents (
     entity_type TEXT NOT NULL, -- 'property', 'tenant', 'sci', 'loan'
     entity_id INTEGER, -- Identifiant de l'entité liée
     filename TEXT NOT NULL,
-    file_path TEXT NOT NULL,
+    file_path TEXT NOT NULL,        -- URL Cloudinary (secure_url) ou chemin local (legacy)
+    cloudinary_public_id TEXT DEFAULT '', -- public_id Cloudinary pour la suppression
     file_size INTEGER DEFAULT 0,
     notes TEXT DEFAULT '',
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
