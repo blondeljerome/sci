@@ -92,7 +92,7 @@ if "db_initialized" not in st.session_state:
         init_db()
         st.session_state["db_initialized"] = True
     except Exception as e:
-        st.sidebar.error(f"Erreur initialisation DB : {e}")
+        st.error(f"Erreur initialisation DB : {e}")
 
 # Récupération des informations de la SCI
 sci_info = {}
@@ -104,10 +104,71 @@ except Exception:
 sci_name = sci_info.get("name", "Ma SCI Immobilière")
 tax_regime = sci_info.get("tax_regime", "IS")
 
+# Vérification de l'authentification
+from utils.auth import authenticate
+
+if "authenticated_user" not in st.session_state:
+    # Interface d'accueil / Connexion centrée
+    _, col_login, _ = st.columns([1, 1.3, 1])
+    with col_login:
+        st.write("")
+        st.write("")
+        st.markdown(f"""
+        <div style="text-align: center; margin-bottom: 24px; padding-top: 20px;">
+            <span style="font-size: 48px;">🏢</span>
+            <h1 style="font-size: 26px; margin: 8px 0; color: #0f172a;">{sci_name}</h1>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 0;">Portail de Gestion Immobilière — Accès sécurisé</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("form_login"):
+            st.markdown("#### Connexion")
+            username_input = st.text_input("Identifiant", placeholder="ex: jerome ou claire")
+            password_input = st.text_input("Mot de passe", type="password", placeholder="Votre mot de passe")
+            
+            submit_btn = st.form_submit_button("Se connecter 🔐", type="primary", use_container_width=True)
+            if submit_btn:
+                user = authenticate(username_input, password_input)
+                if user:
+                    st.session_state["authenticated_user"] = user
+                    st.success(f"Bienvenue, {user.get('full_name')} !")
+                    st.rerun()
+                else:
+                    st.error("Identifiant ou mot de passe incorrect.")
+
+        with st.expander("ℹ️ Première connexion / Aide"):
+            st.markdown("""
+            **Accès autorisés pour les associés :**
+            - Identifiants configurés : `jerome` ou `claire`
+            - Mot de passe initial : `sci2026!`
+            
+            *Une fois connecté, vous pourrez modifier votre mot de passe dans **Paramètres > Sécurité & Utilisateurs**.*
+            """)
+
+    # Bloquer l'exécution du reste de l'application tant que non connecté
+    st.stop()
+
+# Utilisateur authentifié
+current_user = st.session_state["authenticated_user"]
+
 # Barre latérale (Sidebar)
 with st.sidebar:
     st.markdown(f"### 🏢 {sci_name}")
     
+    # Badge utilisateur connecté + déconnexion
+    st.markdown(f"""
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;">
+        <div style="font-weight: 600; color: #0f172a; font-size: 14px;">👤 {current_user.get('full_name', current_user.get('username'))}</div>
+        <div style="font-size: 12px; color: #64748b;">Compte : <code>{current_user.get('username')}</code></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("🚪 Se déconnecter", use_container_width=True):
+        st.session_state.pop("authenticated_user", None)
+        st.rerun()
+
+    st.markdown("---")
+
     conn_info = get_connection_info()
     if conn_info["is_turso"]:
         st.markdown('<span class="badge badge-turso">☁️ Turso Cloud Connecté</span>', unsafe_allow_html=True)

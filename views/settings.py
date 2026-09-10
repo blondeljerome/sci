@@ -8,7 +8,12 @@ def render_settings():
     st.markdown("## ⚙️ Paramètres & Configuration")
     st.caption("Gérez l'identité juridique de votre SCI et surveillez la connexion à votre base de données Turso.")
 
-    tab_sci, tab_db, tab_smtp = st.tabs(["🏢 Identité de la SCI", "☁️ Base de Données & Turso", "📧 Configuration Email (SMTP)"])
+    tab_sci, tab_db, tab_smtp, tab_security = st.tabs([
+        "🏢 Identité de la SCI",
+        "☁️ Base de Données & Turso",
+        "📧 Configuration Email (SMTP)",
+        "🔐 Sécurité & Utilisateurs"
+    ])
 
     # 1. IDENTITE DE LA SCI
     with tab_sci:
@@ -145,4 +150,102 @@ def render_settings():
                     st.success(msg)
                 else:
                     st.error(msg)
+
+    # 4. SECURITE & UTILISATEURS
+    with tab_security:
+        from utils.auth import change_password, update_user_profile, get_all_users, hash_password
+        
+        current_user = st.session_state.get("authenticated_user", {})
+        user_id = current_user.get("id")
+        user_name = current_user.get("full_name", "Utilisateur")
+        user_login = current_user.get("username", "")
+
+        st.markdown("#### 👤 Mon Compte Connecté")
+        st.info(f"Connecté en tant que **{user_name}** (`{user_login}`) — Rôle : **{current_user.get('role', 'admin').capitalize()}**")
+
+        col_pwd, col_prof = st.columns(2)
+
+        with col_pwd:
+            st.markdown("##### 🔑 Modifier mon mot de passe")
+            with st.form("form_change_password"):
+                old_pwd = st.text_input("Mot de passe actuel *", type="password")
+                new_pwd = st.text_input("Nouveau mot de passe (min. 6 caractères) *", type="password")
+                confirm_pwd = st.text_input("Confirmer le nouveau mot de passe *", type="password")
+
+                btn_change = st.form_submit_button("Mettre à jour le mot de passe", type="primary")
+                if btn_change:
+                    if not old_pwd or not new_pwd:
+                        st.error("Veuillez remplir tous les champs obligatoires.")
+                    elif new_pwd != confirm_pwd:
+                        st.error("Les deux nouveaux mots de passe ne correspondent pas.")
+                    elif len(new_pwd) < 6:
+                        st.error("Le nouveau mot de passe doit comporter au moins 6 caractères.")
+                    else:
+                        ok, msg = change_password(user_id, old_pwd, new_pwd)
+                        if ok:
+                            st.success(msg)
+                        else:
+                            st.error(msg)
+
+        with col_prof:
+            st.markdown("##### 📝 Mes Coordonnées")
+            with st.form("form_change_profile"):
+                new_fullname = st.text_input("Nom & Prénom *", value=current_user.get("full_name", ""))
+                new_email = st.text_input("Adresse email", value=current_user.get("email", ""), placeholder="ex: contact@masci.fr")
+
+                btn_profile = st.form_submit_button("Enregistrer mon profil")
+                if btn_profile:
+                    if not new_fullname.strip():
+                        st.error("Le nom est obligatoire.")
+                    else:
+                        ok, msg = update_user_profile(user_id, new_fullname, new_email)
+                        if ok:
+                            # Mettre à jour la session
+                            current_user["full_name"] = new_fullname.strip()
+                            current_user["email"] = new_email.strip()
+                            st.session_state["authenticated_user"] = current_user
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+        st.markdown("---")
+        st.markdown("#### 👥 Comptes Utilisateurs de la SCI")
+        st.caption("Gestion des 2 accès autorisés à l'application.")
+
+        all_users = get_all_users()
+        if all_users:
+            import pandas as pd
+            display_users = []
+            for u in all_users:
+                display_users.append({
+                    "Identifiant": u["username"],
+                    "Nom Complet": u["full_name"],
+                    "Email": u["email"] or "Non renseigné",
+                    "Rôle": u["role"],
+                    "Statut": "✅ Actif" if u["is_active"] else "❌ Inactif",
+                    "Dernière Connexion": u["last_login"] or "Jamais"
+                })
+            st.dataframe(pd.DataFrame(display_users), use_container_width=True, hide_index=True)
+
+        # Réinitialisation d'un mot de passe par l'administrateur
+        with st.expander("🛠️ Réinitialiser le mot de passe d'un utilisateur"):
+            st.caption("Permet d'attribuer un nouveau mot de passe temporaire en cas d'oubli.")
+            other_users = [u for u in all_users if u["id"] != user_id]
+            if other_users:
+                target_user = st.selectbox(
+                    "Utilisateur concerné",
+                    options=other_users,
+                    format_func=lambda u: f"{u['full_name']} ({u['username']})"
+                )
+                temp_pwd = st.text_input("Nouveau mot de passe temporaire (min. 6 car.)", type="password", key="admin_temp_pwd")
+                if st.button("Réinitialiser le mot de passe de cet utilisateur"):
+                    if len(temp_pwd) < 6:
+                        st.error("Le mot de passe doit comporter au moins 6 caractères.")
+                    else:
+                        new_hash = hash_password(temp_pwd)
+                        execute_write("UPDATE users SET password_hash = ? WHERE id = ?;", [new_hash, target_user["id"]])
+                        st.success(f"Mot de passe de {target_user['full_name']} réinitialisé avec succès !")
+            else:
+                st.info("Aucun autre utilisateur configuré.")
 

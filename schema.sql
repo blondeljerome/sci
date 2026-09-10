@@ -207,3 +207,18 @@ CREATE INDEX IF NOT EXISTS idx_property_expenses_property ON property_expenses(p
 CREATE INDEX IF NOT EXISTS idx_partner_accounts_name ON partner_accounts(partner_name);
 CREATE INDEX IF NOT EXISTS idx_loans_property ON loans(property_id);
 CREATE INDEX IF NOT EXISTS idx_documents_entity ON documents(entity_type, entity_id);
+
+-- 11. Utilisateurs & Authentification
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    email TEXT DEFAULT '',
+    role TEXT DEFAULT 'admin', -- 'admin' ou 'gestionnaire'
+    is_active INTEGER DEFAULT 1,
+    last_login TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);

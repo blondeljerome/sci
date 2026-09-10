@@ -116,6 +116,13 @@ def init_db():
     finally:
         client.close()
 
+    # 5. Initialisation des 2 utilisateurs par défaut
+    try:
+        from utils.auth import init_default_users
+        init_default_users()
+    except Exception:
+        pass
+
 def query_df(sql: str, params: Optional[List[Any]] = None) -> pd.DataFrame:
     """
     Exécute une requête SELECT et retourne un DataFrame Pandas.
