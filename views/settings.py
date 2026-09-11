@@ -96,6 +96,90 @@ def render_settings():
         ```
         """)
 
+        st.markdown("---")
+        st.markdown("#### 💾 Sauvegardes Cloudinary & Rétention (1 mois)")
+        st.caption("Sauvegardes complètes (schémas + données au format standard `.sql`) stockées dans le dossier Cloudinary `sci-backups/` avec purge automatique des archives de plus de 30 jours.")
+
+        from utils.backup import create_backup, list_backups, delete_backup, purge_expired_backups
+
+        col_bk1, col_bk2 = st.columns(2)
+        with col_bk1:
+            if st.button("🚀 Créer une sauvegarde maintenant", type="primary", use_container_width=True):
+                with st.spinner("Génération du dump SQL et upload vers Cloudinary..."):
+                    try:
+                        res_bk = create_backup(retention_days=30)
+                        size_kb = res_bk["size_bytes"] / 1024
+                        purged = res_bk.get("purged_count", 0)
+                        msg = f"Sauvegarde réussie ! Fichier : `{res_bk['filename']}` ({size_kb:.1f} Ko)."
+                        if purged > 0:
+                            msg += f" {purged} ancienne(s) sauvegarde(s) de plus de 30 jours ont été purgées."
+                        st.success(msg)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erreur lors de la sauvegarde : {e}")
+
+        with col_bk2:
+            if st.button("🧹 Purger les archives de plus de 30 jours", use_container_width=True):
+                with st.spinner("Vérification des archives expirées..."):
+                    try:
+                        purged = purge_expired_backups(retention_days=30)
+                        if purged > 0:
+                            st.success(f"{purged} sauvegarde(s) de plus de 30 jours supprimée(s) de Cloudinary.")
+                        else:
+                            st.info("Aucune sauvegarde de plus de 30 jours à purger.")
+                    except Exception as e:
+                        st.error(f"Erreur lors de la purge : {e}")
+
+        # Récupération et affichage de la liste des sauvegardes existantes
+        st.markdown("##### 📁 Sauvegardes disponibles sur Cloudinary (`sci-backups/`)")
+        try:
+            existing_backups = list_backups()
+            if not existing_backups:
+                st.info("Aucune sauvegarde enregistrée pour le moment dans Cloudinary.")
+            else:
+                total_bytes = sum(b["bytes"] for b in existing_backups)
+                m_col1, m_col2, m_col3 = st.columns(3)
+                m_col1.metric("Nombre de sauvegardes", len(existing_backups))
+                m_col2.metric("Espace total occupé", f"{total_bytes / 1024:.1f} Ko")
+                latest_dt = existing_backups[0].get("created_at")
+                m_col3.metric("Dernier backup", latest_dt.strftime("%d/%m/%Y %H:%M") if latest_dt else "N/A")
+
+                for b in existing_backups:
+                    dt_label = b["created_at"].strftime("%d/%m/%Y à %H:%M:%S") if b["created_at"] else b["created_at_str"]
+                    size_kb = b["bytes"] / 1024
+                    
+                    with st.container():
+                        c_info, c_down, c_del = st.columns([3, 1.2, 0.8])
+                        with c_info:
+                            st.markdown(f"**📦 `{b['filename']}`** — {size_kb:.1f} Ko")
+                            st.caption(f"Enregistré le {dt_label} (UTC)")
+                        with c_down:
+                            st.link_button("📥 Télécharger", b["secure_url"], use_container_width=True)
+                        with c_del:
+                            if st.button("🗑️", key=f"del_bk_{b['public_id']}", help="Supprimer cette sauvegarde de Cloudinary"):
+                                if delete_backup(b["public_id"]):
+                                    st.success(f"Sauvegarde {b['filename']} supprimée.")
+                                    st.rerun()
+                                else:
+                                    st.error("Erreur lors de la suppression.")
+                        st.divider()
+
+        except Exception as e:
+            st.warning(f"Impossible de récupérer la liste des sauvegardes Cloudinary : {e}")
+
+        with st.expander("⏰ Automatisation hebdomadaire (GitHub Actions)"):
+            st.markdown("""
+            Un workflow GitHub Actions automatisé a été configuré dans `.github/workflows/weekly_backup.yml`.
+            - **Fréquence :** Tous les dimanches à 03:00 UTC.
+            - **Rétention :** Les sauvegardes de plus de 30 jours (1 mois) sont automatiquement supprimées.
+            - **Secrets GitHub requis :** Rendez-vous dans votre dépôt GitHub > *Settings > Secrets and variables > Actions* et ajoutez :
+              - `TURSO_DATABASE_URL`
+              - `TURSO_AUTH_TOKEN`
+              - `CLOUDINARY_CLOUD_NAME`
+              - `CLOUDINARY_API_KEY`
+              - `CLOUDINARY_API_SECRET`
+            """)
+
     # 3. CONFIGURATION SMTP
     with tab_smtp:
         st.markdown("#### Serveur d'Envoi d'Emails (SMTP)")
