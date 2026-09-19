@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS sci_info (
     manager_phone TEXT DEFAULT '',
     iban TEXT DEFAULT '',
     bic TEXT DEFAULT '',
+    share_capital REAL DEFAULT 1000.0, -- Capital social statutaire de la SCI
     -- Configuration SMTP pour l'envoi d'emails
     smtp_server TEXT DEFAULT '',
     smtp_port INTEGER DEFAULT 587,

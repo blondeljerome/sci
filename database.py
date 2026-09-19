@@ -72,12 +72,13 @@ def init_db():
         except Exception:
             pass
 
-        # 2. Migration sci_info (SMTP + régime fiscal)
+        # 2. Migration sci_info (SMTP + régime fiscal + capital social)
         try:
             rs_sci = client.execute("PRAGMA table_info(sci_info);")
             sci_cols = [row[1] for row in rs_sci.rows]
             for col_name, col_type in [
                 ("tax_regime", "TEXT DEFAULT 'IS'"),
+                ("share_capital", "REAL DEFAULT 1000.0"),
                 ("smtp_server", "TEXT DEFAULT ''"),
                 ("smtp_port", "INTEGER DEFAULT 587"),
                 ("smtp_username", "TEXT DEFAULT ''"),

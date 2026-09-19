@@ -33,6 +33,7 @@ def render_settings():
                 manager_name = st.text_input("Nom & Prénom du Gérant", value=sci.get("manager_name", ""))
                 manager_email = st.text_input("Email de contact de la SCI", value=sci.get("manager_email", ""))
                 manager_phone = st.text_input("Téléphone du gérant", value=sci.get("manager_phone", ""))
+                share_capital = st.number_input("Capital social statutaire (€)", value=float(sci.get("share_capital", 1000.0) or 1000.0), min_value=1.0, step=100.0, help="Capital social mentionné dans les statuts de la SCI (inscrit au Passif du Bilan)")
 
             st.markdown("#### Coordonnées Bancaires (pour les avis d'échéance)")
             col_b1, col_b2 = st.columns(2)
@@ -46,9 +47,9 @@ def render_settings():
                 regime_clean = "IS" if "IS" in tax_regime else "IR"
                 execute_write("""
                     UPDATE sci_info
-                    SET name=?, tax_regime=?, siren=?, address=?, postal_code=?, city=?, manager_name=?, manager_email=?, manager_phone=?, iban=?, bic=?, updated_at=CURRENT_TIMESTAMP
+                    SET name=?, tax_regime=?, siren=?, address=?, postal_code=?, city=?, manager_name=?, manager_email=?, manager_phone=?, iban=?, bic=?, share_capital=?, updated_at=CURRENT_TIMESTAMP
                     WHERE id = 1;
-                """, [sci_name, regime_clean, siren, address, postal_code, city, manager_name, manager_email, manager_phone, iban, bic])
+                """, [sci_name, regime_clean, siren, address, postal_code, city, manager_name, manager_email, manager_phone, iban, bic, share_capital])
                 st.success("Informations de la SCI mises à jour avec succès !")
                 st.rerun()
 

@@ -244,29 +244,15 @@ def render_legal():
 
         ago_year = st.selectbox("Exercice comptable à approuver :", list(range(date.today().year - 3, date.today().year + 1)), index=len(range(date.today().year - 3, date.today().year + 1)) - 1, key="ago_yr")
 
-        # Calcul des chiffres de l'exercice
-        rents = query_rows("SELECT amount_paid FROM rent_payments WHERE period_year = ?;", [ago_year])
-        gross_inc = sum(r["amount_paid"] for r in rents)
-
-        sci_exp = query_rows("SELECT amount, category FROM sci_expenses WHERE strftime('%Y', date) = ?;", [str(ago_year)])
-        prop_exp = query_rows("SELECT amount FROM property_expenses WHERE strftime('%Y', date) = ? AND is_recoverable = 0;", [str(ago_year)])
-        
-        op_exp = sum(e["amount"] for e in sci_exp if "intérêt" not in e["category"].lower() and "interet" not in e["category"].lower() and "bancaire" not in e["category"].lower()) + sum(e["amount"] for e in prop_exp)
-        fin_exp = sum(e["amount"] for e in sci_exp if "intérêt" in e["category"].lower() or "interet" in e["category"].lower() or "bancaire" in e["category"].lower())
-
-        # Amortissements
-        all_props = query_rows("SELECT acquisition_price, notary_fees, land_share_pct, amortization_years, furniture_value, furniture_years FROM properties;")
-        daa = 0.0
-        for p in all_props:
-            cost = float(p.get("acquisition_price", 0)) + float(p.get("notary_fees", 0))
-            land = float(p.get("acquisition_price", 0)) * (float(p.get("land_share_pct", 15)) / 100.0)
-            daa += (cost - land) / max(1, int(p.get("amortization_years", 25)))
-            if p.get("furniture_value", 0) > 0:
-                daa += float(p.get("furniture_value", 0)) / max(1, int(p.get("furniture_years", 5)))
-
-        rcai = gross_inc - op_exp - daa - fin_exp
-        is_tax = (min(rcai, 42500) * 0.15 + max(0, rcai - 42500) * 0.25) if rcai > 0 else 0.0
-        net_res = rcai - is_tax
+        from utils.tax_calculator import compute_income_statement
+        inc = compute_income_statement(ago_year)
+        gross_inc = inc["gross_rental_income"]
+        op_exp = inc["total_operating_charges"]
+        daa = inc["total_daa"]
+        fin_exp = inc["total_financial_charges"]
+        rcai = inc["rcai"]
+        is_tax = inc["is_tax"]
+        net_res = inc["net_accounting_result"]
 
         html_ago = generate_pv_ago_html(sci_info, ago_year, gross_inc, op_exp, daa, fin_exp, rcai, is_tax, net_res)
 
