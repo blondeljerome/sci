@@ -1,8 +1,129 @@
-"""
-Module d'indexation annuelle des loyers selon l'Indice de Référence des Loyers (IRL) de l'INSEE.
-Conforme à l'article 17-1 de la loi du 6 juillet 1989.
-"""
-from typing import Dict, Any
+import urllib.request
+import re
+from typing import Dict, Any, List, Optional
+from database import query_rows, execute_write
+
+def fetch_online_irl_indices() -> List[Dict[str, Any]]:
+    """
+    Récupère automatiquement les indices IRL publiés depuis les sources officielles :
+    1. Service-Public.fr (indices récents avec dates de parution au JO)
+    2. ANIL (Agence Nationale pour l'Information sur le Logement - historique complet)
+    Retourne une liste de dictionnaires ordonnés du plus récent au plus ancien.
+    """
+    results_map: Dict[str, Dict[str, Any]] = {}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    # 1. Source Service-Public.fr (derniers trimestres parus au JO)
+    try:
+        url_sp = "https://www.service-public.fr/particuliers/vosdroits/F13723"
+        req_sp = urllib.request.Request(url_sp, headers=headers)
+        with urllib.request.urlopen(req_sp, timeout=8) as resp:
+            html_sp = resp.read().decode("utf-8", errors="ignore")
+
+        tables_sp = re.findall(r'<table[^>]*>(.*?)</table>', html_sp, flags=re.DOTALL)
+        if tables_sp:
+            rows_sp = re.findall(r'<tr[^>]*>(.*?)</tr>', tables_sp[0], flags=re.DOTALL)
+            for r in rows_sp:
+                text = " ".join(re.sub(r'<[^>]+>', ' ', r).split())
+                m = re.search(r'(20[12][0-9])\s*([1-4])\s*e?r?\s*trimestre\s*(1[0-9]{2}[,\.][0-9]{2}).*?([0-9]{2}/[0-9]{2}/20[12][0-9])', text)
+                if m:
+                    y, q_num, val_str, jo_date = m.groups()
+                    d, mth, yr = jo_date.split('/')
+                    q_key = f"T{q_num} {y}"
+                    results_map[q_key] = {
+                        "quarter": q_key,
+                        "value": float(val_str.replace(",", ".")),
+                        "published_date": f"{yr}-{mth}-{d}",
+                        "source": "Service-Public.fr"
+                    }
+    except Exception as e:
+        print(f"[IRL Fetch] Service-Public notice: {e}")
+
+    # 2. Source ANIL (complément et historique étendu)
+    try:
+        url_anil = "https://www.anil.org/outils/indices-et-plafonds/tableau-de-lirl/"
+        req_anil = urllib.request.Request(url_anil, headers=headers)
+        with urllib.request.urlopen(req_anil, timeout=8) as resp:
+            html_anil = resp.read().decode("utf-8", errors="ignore")
+
+        rows_anil = re.findall(r'<tr[^>]*>(.*?)</tr>', html_anil, flags=re.DOTALL)
+        cur_year = None
+        for r in rows_anil:
+            text = " ".join(re.sub(r'<[^>]+>', ' ', r).split())
+            y_m = re.search(r'\b(20[12][0-9])\b', text)
+            if y_m:
+                cur_year = y_m.group(1)
+            q_m = re.search(r'\b(T[1-4])\b', text)
+            v_m = re.search(r'\b(1[0-9]{2}[,\.][0-9]{2})\b', text)
+            jo_m = re.search(r'JO du ([0-9]{2})\.([0-9]{2})\.([0-9]{2})', text)
+
+            if q_m and v_m and cur_year:
+                q_key = f"{q_m.group(1)} {cur_year}"
+                val = float(v_m.group(1).replace(",", "."))
+                pub_d = ""
+                if jo_m:
+                    d, mth, yr = jo_m.groups()
+                    pub_d = f"20{yr}-{mth}-{d}"
+
+                if q_key not in results_map:
+                    results_map[q_key] = {
+                        "quarter": q_key,
+                        "value": val,
+                        "published_date": pub_d,
+                        "source": "ANIL"
+                    }
+                elif not results_map[q_key].get("published_date") and pub_d:
+                    results_map[q_key]["published_date"] = pub_d
+    except Exception as e:
+        print(f"[IRL Fetch] ANIL notice: {e}")
+
+    # Tri des trimestres chronologiquement du plus récent au plus ancien
+    def quarter_sort_key(item):
+        q = item["quarter"]
+        try:
+            parts = q.split()
+            q_num = int(parts[0].replace("T", ""))
+            y_num = int(parts[1])
+            return (y_num, q_num)
+        except Exception:
+            return (0, 0)
+
+    sorted_results = sorted(list(results_map.values()), key=quarter_sort_key, reverse=True)
+    return sorted_results
+
+def sync_irl_indices_to_db() -> Dict[str, Any]:
+    """
+    Récupère en direct les derniers indices IRL en ligne et les enregistre dans la table irl_indices.
+    """
+    items = fetch_online_irl_indices()
+    if not items:
+        return {
+            "success": False,
+            "message": "Impossible de joindre les serveurs officiels en ligne.",
+            "count": 0,
+            "items": []
+        }
+
+    inserted_count = 0
+    for it in items:
+        execute_write("""
+            INSERT OR REPLACE INTO irl_indices (quarter, value, published_date)
+            VALUES (?, ?, ?);
+        """, [it["quarter"], it["value"], it.get("published_date", "")])
+        inserted_count += 1
+
+    latest = items[0] if items else {}
+    return {
+        "success": True,
+        "message": f"{inserted_count} indices IRL synchronisés avec succès !",
+        "count": inserted_count,
+        "latest_quarter": latest.get("quarter", ""),
+        "latest_value": latest.get("value", 0.0),
+        "latest_date": latest.get("published_date", ""),
+        "items": items
+    }
 
 def calculate_irl_revision(old_rent: float, old_irl: float, new_irl: float) -> float:
     """

@@ -148,17 +148,35 @@ def render_legal():
         st.markdown("#### 📈 Indexation Annuelle selon l'IRL de l'INSEE")
         st.caption("Révision annuelle légale des loyers basée sur la clause d'indexation du bail.")
 
-        # Affichage des indices enregistrés
-        indices = query_rows("SELECT quarter, value, published_date FROM irl_indices ORDER BY id DESC;")
+        # Affichage des indices enregistrés triés chronologiquement (plus récent en premier)
+        indices = query_rows("""
+            SELECT quarter, value, published_date 
+            FROM irl_indices 
+            ORDER BY CAST(SUBSTR(quarter, 4, 4) AS INTEGER) DESC, CAST(SUBSTR(quarter, 2, 1) AS INTEGER) DESC;
+        """)
         with st.expander("Voir / Mettre à jour la table des indices IRL INSEE", expanded=False):
+            col_s1, col_s2 = st.columns([2, 1])
+            with col_s1:
+                st.markdown(f"**Indices enregistrés ({len(indices)} trimestres disponibles) :**")
+            with col_s2:
+                from utils.irl import sync_irl_indices_to_db
+                if st.button("🔄 Récupérer les IRL en ligne", key="btn_sync_irl_legal", help="Télécharge automatiquement tous les derniers indices parus depuis Service-Public.fr et ANIL"):
+                    with st.spinner("Téléchargement des indices en ligne..."):
+                        sync_res = sync_irl_indices_to_db()
+                        if sync_res["success"]:
+                            st.success(f"✅ {sync_res['count']} indices synchronisés ! Dernier : {sync_res['latest_quarter']} ({sync_res['latest_value']})")
+                            st.rerun()
+                        else:
+                            st.error(sync_res["message"])
+
             st.dataframe(pd.DataFrame(indices), use_container_width=True, hide_index=True)
             with st.form("form_add_irl"):
-                st.markdown("**Ajouter un nouvel indice trimestriel publié :**")
+                st.markdown("**Ajouter manuellement un indice trimestriel :**")
                 ai1, ai2, ai3 = st.columns(3)
                 with ai1:
-                    new_q = st.text_input("Trimestre (ex: T2 2025)")
+                    new_q = st.text_input("Trimestre (ex: T3 2026)")
                 with ai2:
-                    new_v = st.number_input("Valeur IRL", min_value=100.0, max_value=200.0, value=145.80, step=0.01)
+                    new_v = st.number_input("Valeur IRL", min_value=100.0, max_value=200.0, value=148.50, step=0.01)
                 with ai3:
                     new_d = st.date_input("Date publication JO", value=date.today()).strftime("%Y-%m-%d")
                 if st.form_submit_button("Ajouter l'indice"):
