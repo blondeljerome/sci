@@ -105,12 +105,16 @@ def init_db():
         except Exception:
             pass
 
-        # 4. Migration documents (Cloudinary)
+        # 4. Migration documents (Cloudinary, property_id, tenant_id)
         try:
             rs_d = client.execute("PRAGMA table_info(documents);")
             doc_cols = [row[1] for row in rs_d.rows]
             if "cloudinary_public_id" not in doc_cols:
                 client.execute("ALTER TABLE documents ADD COLUMN cloudinary_public_id TEXT DEFAULT '';")
+            if "property_id" not in doc_cols:
+                client.execute("ALTER TABLE documents ADD COLUMN property_id INTEGER;")
+            if "tenant_id" not in doc_cols:
+                client.execute("ALTER TABLE documents ADD COLUMN tenant_id INTEGER;")
         except Exception:
             pass
 

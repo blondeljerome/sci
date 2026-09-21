@@ -199,12 +199,16 @@ CREATE TABLE IF NOT EXISTS documents (
     category TEXT NOT NULL, -- 'Bail & État des lieux', 'Assurance', 'Diagnostic', 'Facture / Devis', 'Statuts & Kbis', 'Autre'
     entity_type TEXT NOT NULL, -- 'property', 'tenant', 'sci', 'loan'
     entity_id INTEGER, -- Identifiant de l'entité liée
+    property_id INTEGER, -- Clé étrangère directe vers properties
+    tenant_id INTEGER,   -- Clé étrangère directe vers tenants
     filename TEXT NOT NULL,
     file_path TEXT NOT NULL,        -- URL Cloudinary (secure_url) ou chemin local (legacy)
     cloudinary_public_id TEXT DEFAULT '', -- public_id Cloudinary pour la suppression
     file_size INTEGER DEFAULT 0,
     notes TEXT DEFAULT '',
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE SET NULL,
+    FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE SET NULL
 );
 
 -- Index
@@ -217,6 +221,8 @@ CREATE INDEX IF NOT EXISTS idx_property_expenses_property ON property_expenses(p
 CREATE INDEX IF NOT EXISTS idx_partner_accounts_name ON partner_accounts(partner_name);
 CREATE INDEX IF NOT EXISTS idx_loans_property ON loans(property_id);
 CREATE INDEX IF NOT EXISTS idx_documents_entity ON documents(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_documents_property ON documents(property_id);
+CREATE INDEX IF NOT EXISTS idx_documents_tenant ON documents(tenant_id);
 
 -- 11. Utilisateurs & Authentification
 CREATE TABLE IF NOT EXISTS users (
