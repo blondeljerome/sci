@@ -114,6 +114,25 @@ def init_db():
         except Exception:
             pass
 
+        # 5. Migration table partners
+        try:
+            client.execute("""
+                CREATE TABLE IF NOT EXISTS partners (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    email TEXT DEFAULT '',
+                    phone TEXT DEFAULT '',
+                    shares INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            client.execute("""
+                INSERT OR IGNORE INTO partners (name)
+                SELECT DISTINCT partner_name FROM partner_accounts WHERE partner_name != '';
+            """)
+        except Exception:
+            pass
+
     finally:
         client.close()
 

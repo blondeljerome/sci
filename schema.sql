@@ -137,6 +137,15 @@ CREATE TABLE IF NOT EXISTS property_expenses (
 );
 
 -- 7. Comptes Courants d'Associés (CCA) pour SCI à l'IS
+CREATE TABLE IF NOT EXISTS partners (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    email TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    shares INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS partner_accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     partner_name TEXT NOT NULL,
