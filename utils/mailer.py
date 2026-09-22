@@ -79,9 +79,10 @@ def send_email(
         part_html = MIMEText(html_body, "html", "utf-8")
         msg.attach(part_html)
 
-        # Pièce jointe optionnelle (ex: quittance HTML/PDF)
+        # Pièce jointe optionnelle (ex: quittance PDF ou HTML)
         if attachment_filename and attachment_content:
-            part_attach = MIMEApplication(attachment_content.encode("utf-8"), Name=attachment_filename)
+            data_bytes = attachment_content if isinstance(attachment_content, (bytes, bytearray)) else attachment_content.encode("utf-8")
+            part_attach = MIMEApplication(data_bytes, Name=attachment_filename)
             part_attach['Content-Disposition'] = f'attachment; filename="{attachment_filename}"'
             msg.attach(part_attach)
 

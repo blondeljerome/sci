@@ -3,3 +3,4 @@ libsql-client>=0.3.0
 pandas>=2.0.0
 plotly>=5.20.0
 cloudinary>=1.36.0
+reportlab>=5.0.0

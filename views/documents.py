@@ -36,6 +36,25 @@ def format_file_size(size_bytes: int) -> str:
         return f"{size_kb:.1f} Ko"
     return f"{size_kb / 1024.0:.2f} Mo"
 
+def render_doc_button(file_url: str, filename: str, key: str, label: str = "⬇️ Ouvrir / Télécharger"):
+    import os
+    if file_url and file_url.startswith("http"):
+        st.link_button(label, url=file_url, use_container_width=True)
+    elif file_url:
+        if os.path.exists(file_url):
+            with open(file_url, "rb") as f:
+                st.download_button(
+                    label=label,
+                    data=f.read(),
+                    file_name=filename,
+                    key=key,
+                    use_container_width=True
+                )
+        else:
+            st.caption("Fichier introuvable")
+    else:
+        st.caption("Fichier introuvable")
+
 def render_documents():
     st.markdown("## 📎 Coffre-fort Numérique (GED)")
     st.caption("Conservez, classez et téléchargez tous les documents administratifs, baux signés, diagnostics et factures de votre SCI.")
@@ -178,23 +197,7 @@ def render_documents():
 
                     with c2:
                         st.write("")
-                        if file_url and file_url.startswith("http"):
-                            st.link_button("⬇️ Ouvrir / Télécharger", url=file_url, use_container_width=True)
-                        elif file_url:
-                            import os
-                            if os.path.exists(file_url):
-                                with open(file_url, "rb") as f:
-                                    st.download_button(
-                                        label="⬇️ Télécharger",
-                                        data=f.read(),
-                                        file_name=doc["filename"],
-                                        key=f"dl_doc_{doc['id']}",
-                                        use_container_width=True
-                                    )
-                            else:
-                                st.warning("Fichier introuvable")
-                        else:
-                            st.warning("Fichier introuvable")
+                        render_doc_button(file_url, doc["filename"], key=f"dl_doc_{doc['id']}")
 
                     with c3:
                         st.write("")
@@ -244,8 +247,8 @@ def render_documents():
                                 cd1.markdown(f"📄 **{d['filename']}** • `{d['category']}` • {format_file_size(d.get('file_size', 0))}")
                                 if d.get("notes"):
                                     cd1.caption(f"📝 {d['notes']}")
-                                if d.get("file_path", "").startswith("http"):
-                                    cd2.link_button("⬇️ Voir", url=d["file_path"], use_container_width=True)
+                                with cd2:
+                                    render_doc_button(d.get("file_path", ""), d["filename"], key=f"dl_lot_{d['id']}", label="⬇️ Voir")
                                 st.divider()
 
                     st.markdown("##### 👥 Documents des Baux & Locataires de ce Bien")
@@ -259,8 +262,8 @@ def render_documents():
                                 cd1.markdown(f"📄 **{d['filename']}** • 👤 **{t_name}** • `{d['category']}`")
                                 if d.get("notes"):
                                     cd1.caption(f"📝 {d['notes']}")
-                                if d.get("file_path", "").startswith("http"):
-                                    cd2.link_button("⬇️ Voir", url=d["file_path"], use_container_width=True)
+                                with cd2:
+                                    render_doc_button(d.get("file_path", ""), d["filename"], key=f"dl_tenprop_{d['id']}", label="⬇️ Voir")
                                 st.divider()
 
         else: # Par Locataire
@@ -285,8 +288,8 @@ def render_documents():
                                 cd1.markdown(f"📄 **{d['filename']}** • `{d['category']}` • {format_file_size(d.get('file_size', 0))}")
                                 if d.get("notes"):
                                     cd1.caption(f"📝 {d['notes']}")
-                                if d.get("file_path", "").startswith("http"):
-                                    cd2.link_button("⬇️ Voir", url=d["file_path"], use_container_width=True)
+                                with cd2:
+                                    render_doc_button(d.get("file_path", ""), d["filename"], key=f"dl_tendoc_{d['id']}", label="⬇️ Voir")
                                 st.divider()
 
     # 3. TELEVERSER UN DOCUMENT

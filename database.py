@@ -137,6 +137,15 @@ def init_db():
         except Exception:
             pass
 
+        # 6. Migration rent_payments (document_id vers GED)
+        try:
+            rs_r = client.execute("PRAGMA table_info(rent_payments);")
+            rent_cols = [row[1] for row in rs_r.rows]
+            if "document_id" not in rent_cols:
+                client.execute("ALTER TABLE rent_payments ADD COLUMN document_id INTEGER;")
+        except Exception:
+            pass
+
     finally:
         client.close()
 
