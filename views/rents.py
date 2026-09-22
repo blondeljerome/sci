@@ -84,7 +84,7 @@ def render_rents():
 
             with st.container():
                 st.markdown(f"#### 👤 {p['first_name']} {p['last_name'].upper()} — {p['property_name']} &nbsp; ({status_color})")
-                c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
+                c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 2, 1])
                 with c1:
                     st.write(f"**Loyer HC :** {p['rent_amount']:.2f} €")
                     st.write(f"**Charges :** {p['charges_amount']:.2f} €")
@@ -111,6 +111,18 @@ def render_rents():
                     # Action d'ouverture de la quittance
                     if st.button("📄 Quittance de Loyer", key=f"quittance_btn_{p['id']}"):
                         st.session_state[f"show_quittance_{p['id']}"] = not st.session_state.get(f"show_quittance_{p['id']}", False)
+
+                with c5:
+                    with st.popover("🗑️", help="Supprimer cette échéance de loyer"):
+                        st.markdown(f"**Supprimer l'échéance #{p['id']}**")
+                        st.write(f"{p['first_name']} {p['last_name']} ({month_names[selected_month-1]} {selected_year})")
+                        st.write(f"Montant dû : **{p['total_due']:.2f} €**")
+                        if p.get("amount_paid", 0) > 0:
+                            st.warning(f"⚠️ {p['amount_paid']:.2f} € déjà encaissés !")
+                        if st.button("🚨 Confirmer la suppression", type="secondary", key=f"del_single_rent_{p['id']}", use_container_width=True):
+                            execute_write("DELETE FROM rent_payments WHERE id = ?;", [p["id"]])
+                            st.success("Échéance supprimée avec succès !")
+                            st.rerun()
 
                 # Affichage de la quittance si demandée
                 if st.session_state.get(f"show_quittance_{p['id']}", False):
@@ -150,3 +162,36 @@ def render_rents():
                     components.html(html_content, height=600, scrolling=True)
 
                 st.divider()
+
+        # Outils d'administration / Suppression de loyers
+        st.markdown("")
+        with st.expander("🗑️ Supprimer des loyers / échéances en masse"):
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                st.markdown(f"##### Supprimer toutes les échéances de {month_names[selected_month-1]} {selected_year}")
+                st.caption(f"Supprime l'ensemble des {len(payments)} échéances générées pour ce mois.")
+                if st.button(f"🚨 Supprimer les {len(payments)} échéances du mois", type="secondary", key="del_all_month_rents_btn"):
+                    execute_write("DELETE FROM rent_payments WHERE period_month = ? AND period_year = ?;", [selected_month, selected_year])
+                    st.success(f"Échéances de {month_names[selected_month-1]} {selected_year} supprimées.")
+                    st.rerun()
+
+            with col_d2:
+                st.markdown("##### Supprimer l'historique des loyers d'un locataire")
+                tenants_with_rents = query_rows("""
+                    SELECT t.id, t.first_name, t.last_name, COUNT(rp.id) as count_r, SUM(rp.amount_paid) as sum_paid
+                    FROM tenants t
+                    JOIN rent_payments rp ON t.id = rp.tenant_id
+                    GROUP BY t.id
+                    ORDER BY t.last_name ASC;
+                """)
+                if not tenants_with_rents:
+                    st.info("Aucun locataire avec historique de loyer.")
+                else:
+                    t_rent_dict = {t["id"]: f"👤 {t['first_name']} {t['last_name']} ({t['count_r']} échéance(s) — {t['sum_paid'] or 0:.2f} € encaissés)" for t in tenants_with_rents}
+                    sel_t_del = st.selectbox("Sélectionnez le locataire concerné :", options=list(t_rent_dict.keys()), format_func=lambda x: t_rent_dict[x], key="sb_del_t_rents")
+                    t_to_del_obj = next((t for t in tenants_with_rents if t["id"] == sel_t_del), None)
+                    if t_to_del_obj:
+                        if st.button(f"🚨 Supprimer TOUS les loyers de {t_to_del_obj['first_name']} {t_to_del_obj['last_name']}", type="secondary", key=f"btn_del_rents_for_t_{sel_t_del}"):
+                            execute_write("DELETE FROM rent_payments WHERE tenant_id = ?;", [sel_t_del])
+                            st.success(f"L'historique de loyers de {t_to_del_obj['first_name']} {t_to_del_obj['last_name']} a été supprimé.")
+                            st.rerun()

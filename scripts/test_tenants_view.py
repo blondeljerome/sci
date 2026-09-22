@@ -11,6 +11,8 @@ def test_tenant_flow():
     print(f"Biens existants : {len(props)}")
     prop_id = props[0]["id"] if props else None
 
+    initial_status = props[0]["status"] if props else None
+
     print("\n--- 2. Création d'un locataire test ---")
     test_id = execute_write("""
         INSERT INTO tenants (property_id, first_name, last_name, email, phone, lease_start, rent_amount, charges_provision, deposit_amount, is_active, guarantor_info, irl_reference_quarter, irl_reference_value, notes)
@@ -55,13 +57,13 @@ def test_tenant_flow():
         render_tenants()
         print("render_tenants() s'est exécuté sans erreur avec le locataire présent !")
 
-    print("\n--- 5. Nettoyage du locataire test ---")
-    execute_write("DELETE FROM tenants WHERE id = ?;", [test_id])
+    print("\n--- 5. Nettoyage du locataire test via delete_tenant_and_rents ---")
+    from views.tenants import delete_tenant_and_rents
+    delete_tenant_and_rents(test_id, delete_rents=True)
     if prop_id:
-        sync_property_status(prop_id)
         p_final = query_one("SELECT status FROM properties WHERE id = ?;", [prop_id])
         print(f"Statut du bien après suppression : {p_final['status']}")
-        assert p_final['status'] == 'vacant'
+        assert p_final['status'] == initial_status
 
     print("\n✅ TOUS LES TESTS LOCATAIRES SONT PASSÉS AVEC SUCCÈS !")
 

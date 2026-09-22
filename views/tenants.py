@@ -49,6 +49,37 @@ def sync_property_status(property_id: Optional[int]):
     new_status = "loue" if active_count > 0 else "vacant"
     execute_write("UPDATE properties SET status = ? WHERE id = ?;", [new_status, property_id])
 
+def delete_tenant_and_rents(tenant_id: int, delete_rents: bool = True) -> tuple[bool, int]:
+    """
+    Supprime un locataire et optionnellement l'ensemble de ses échéances et loyers encaissés.
+    Nettoie également les liaisons dans property_expenses et documents.
+    Met à jour le statut d'occupation du bien associé.
+    """
+    t_data = query_one("SELECT * FROM tenants WHERE id = ?;", [tenant_id])
+    if not t_data:
+        return False, 0
+
+    prop_id = t_data.get("property_id")
+    rents_count = 0
+
+    if delete_rents:
+        r_rows = query_rows("SELECT COUNT(*) as c FROM rent_payments WHERE tenant_id = ?;", [tenant_id])
+        rents_count = r_rows[0]["c"] if r_rows else 0
+        execute_write("DELETE FROM rent_payments WHERE tenant_id = ?;", [tenant_id])
+
+    # Détacher sans supprimer les charges et documents
+    execute_write("UPDATE property_expenses SET tenant_id = NULL WHERE tenant_id = ?;", [tenant_id])
+    execute_write("UPDATE documents SET tenant_id = NULL WHERE tenant_id = ?;", [tenant_id])
+
+    # Supprimer le locataire
+    execute_write("DELETE FROM tenants WHERE id = ?;", [tenant_id])
+
+    # Synchroniser le bien (devient vacant si 0 locataires actifs)
+    if prop_id:
+        sync_property_status(prop_id)
+
+    return True, rents_count
+
 def render_tenants():
     st.markdown("## 👥 Gestion des Locataires & Baux")
     st.caption("Suivez les locataires en place, modifiez leurs informations contractuelles, ajoutez de nouveaux baux et gérez l'historique.")
@@ -106,17 +137,17 @@ def render_tenants():
                         st.caption(f"📝 Notes : {t.get('notes')}")
 
                     st.markdown("---")
-                    col_act1, col_act2 = st.columns([1, 1])
+                    col_act1, col_act2, col_act3 = st.columns([1, 1, 1])
 
                     # Bouton raccourci de modification
                     with col_act1:
-                        if st.button(f"✏️ Modifier les informations de {t.get('first_name')}", key=f"btn_quick_edit_{t['id']}", use_container_width=True):
+                        if st.button(f"✏️ Modifier les infos", key=f"btn_quick_edit_{t['id']}", use_container_width=True):
                             st.session_state["edit_tenant_id"] = t["id"]
                             st.info("Basculez sur l'onglet **'✏️ Modifier un Locataire'** pour éditer ce dossier.")
 
                     # Action clôture de bail (départ)
                     with col_act2:
-                        with st.popover(f"🚪 Clôturer le bail (Départ de {t.get('first_name')})", use_container_width=True):
+                        with st.popover(f"🚪 Clôturer le bail", use_container_width=True):
                             st.markdown(f"**Confirmer le départ de {t.get('first_name')} {t.get('last_name')}**")
                             dep_date = st.date_input("Date effective de fin de bail", value=date.today(), key=f"dep_date_{t['id']}")
                             if st.button("Confirmer le départ et libérer le logement", type="primary", key=f"btn_confirm_dep_{t['id']}"):
@@ -126,6 +157,23 @@ def render_tenants():
                                 if t.get("property_id"):
                                     sync_property_status(t["property_id"])
                                 st.success(f"Le bail de {t.get('first_name')} a été clôturé et archivé.")
+                                st.rerun()
+
+                    # Action suppression définitive (locataire + loyers)
+                    with col_act3:
+                        with st.popover("🗑️ Supprimer le dossier", use_container_width=True):
+                            st.markdown(f"**Suppression définitive de {t.get('first_name')} {t.get('last_name')}**")
+                            r_info = query_rows("SELECT COUNT(*) as c, SUM(amount_paid) as total_paid FROM rent_payments WHERE tenant_id = ?;", [t["id"]])
+                            r_c = r_info[0]["c"] if r_info else 0
+                            r_paid = float(r_info[0]["total_paid"] or 0.0) if r_info else 0.0
+                            if r_c > 0:
+                                st.warning(f"⚠️ **{r_c} loyer(s) associé(s)** ({r_paid:,.2f} € encaissés).")
+                            else:
+                                st.caption("Aucun loyer enregistré pour ce locataire.")
+                            del_rents_quick = st.checkbox("Supprimer également ses loyers & quittances", value=True, key=f"chk_del_rents_quick_{t['id']}")
+                            if st.button("🚨 Confirmer la suppression", type="secondary", key=f"btn_del_quick_{t['id']}", use_container_width=True):
+                                ok, del_count = delete_tenant_and_rents(t["id"], delete_rents=del_rents_quick)
+                                st.success(f"Locataire supprimé{' avec ses ' + str(del_count) + ' loyers' if del_rents_quick else ''} !")
                                 st.rerun()
 
     # =========================================================================
@@ -429,22 +477,23 @@ def render_tenants():
                 # Zone de danger : Suppression sécurisée
                 st.markdown("---")
                 st.markdown("#### 🗑️ Zone de Danger — Suppression du Locataire")
-                linked_rents = query_rows("SELECT COUNT(*) as c FROM rent_payments WHERE tenant_id = ?;", [selected_id])
+                linked_rents = query_rows("SELECT COUNT(*) as c, SUM(amount_paid) as total_paid FROM rent_payments WHERE tenant_id = ?;", [selected_id])
                 rents_count = linked_rents[0]["c"] if linked_rents else 0
+                rents_paid = float(linked_rents[0]["total_paid"] or 0.0) if linked_rents else 0.0
 
                 if rents_count > 0:
-                    st.warning(f"⚠️ Ce locataire possède **{rents_count} quittance(s) ou échéance(s) de loyer liée(s)** dans la base de données. Supprimer le locataire supprimera également ces paiements.")
+                    st.warning(f"⚠️ Ce locataire possède **{rents_count} quittance(s) ou échéance(s) de loyer** pour un total encaissé de **{rents_paid:,.2f} €**.")
+                else:
+                    st.info("Aucun loyer n'est enregistré pour ce locataire.")
                 
-                with st.expander("Supprimer définitivement la fiche de ce locataire"):
+                with st.expander("Supprimer définitivement la fiche de ce locataire et ses loyers"):
                     st.write(f"Êtes-vous sûr de vouloir supprimer définitivement **{t_data.get('first_name')} {t_data.get('last_name')}** ? Cette action est irréversible.")
+                    del_rents_opt = st.checkbox(f"Supprimer également tous ses loyers ({rents_count} échéance(s) — {rents_paid:,.2f} €)", value=True, key=f"del_rents_chk_{selected_id}")
                     confirm_del = st.checkbox(f"Oui, je confirme vouloir supprimer le dossier de {t_data.get('first_name')} {t_data.get('last_name')}", key=f"del_chk_{selected_id}")
-                    if st.button("Confirmer la suppression définitive", type="secondary", disabled=not confirm_del, key=f"del_btn_{selected_id}"):
-                        prop_to_sync = t_data.get("property_id")
-                        execute_write("DELETE FROM tenants WHERE id = ?;", [selected_id])
-                        if prop_to_sync:
-                            sync_property_status(prop_to_sync)
+                    if st.button("🚨 Confirmer la suppression définitive", type="secondary", disabled=not confirm_del, key=f"del_btn_{selected_id}"):
+                        ok, count_deleted = delete_tenant_and_rents(selected_id, delete_rents=del_rents_opt)
                         st.session_state.pop("edit_tenant_id", None)
-                        st.warning("Le locataire a été supprimé.")
+                        st.warning(f"Le locataire a été supprimé{' ainsi que ses ' + str(count_deleted) + ' loyer(s)' if del_rents_opt else ''}.")
                         st.rerun()
 
     # =========================================================================
@@ -468,3 +517,19 @@ def render_tenants():
             st.dataframe(display_past, use_container_width=True, hide_index=True)
 
             st.caption("💡 Pour réactiver un ancien locataire ou corriger ses informations, rendez-vous dans l'onglet **'✏️ Modifier un Locataire'**.")
+
+            with st.expander("🗑️ Supprimer définitivement un ancien locataire archivé"):
+                past_opts = {t["id"]: f"#{t['id']} | {t['first_name']} {t['last_name']} (Bail du {t.get('lease_start')} au {t.get('lease_end') or 'non spécifié'})" for t in past_tenants}
+                sel_past_id = st.selectbox("Sélectionnez l'ancien locataire à supprimer :", options=list(past_opts.keys()), format_func=lambda x: past_opts[x], key="sb_del_past_tenant")
+                past_t_obj = next((t for t in past_tenants if t["id"] == sel_past_id), None)
+                if past_t_obj:
+                    r_past_info = query_rows("SELECT COUNT(*) as c, SUM(amount_paid) as total_paid FROM rent_payments WHERE tenant_id = ?;", [sel_past_id])
+                    r_past_count = r_past_info[0]["c"] if r_past_info else 0
+                    r_past_paid = float(r_past_info[0]["total_paid"] or 0.0) if r_past_info else 0.0
+                    if r_past_count > 0:
+                        st.warning(f"⚠️ Cet ancien locataire possède **{r_past_count} loyer(s) archivé(s)** ({r_past_paid:,.2f} €).")
+                    del_past_rents = st.checkbox("Supprimer également tous ses loyers archivés", value=True, key=f"chk_del_past_rents_{sel_past_id}")
+                    if st.button(f"Confirmer la suppression définitive de {past_t_obj['first_name']} {past_t_obj['last_name']}", type="secondary", key=f"btn_confirm_del_past_{sel_past_id}"):
+                        delete_tenant_and_rents(sel_past_id, delete_rents=del_past_rents)
+                        st.success(f"Ancien locataire supprimé{' avec ses ' + str(r_past_count) + ' loyer(s)' if del_past_rents else ''}.")
+                        st.rerun()
