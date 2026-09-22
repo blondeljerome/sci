@@ -96,11 +96,13 @@ CREATE TABLE IF NOT EXISTS rent_payments (
     status TEXT DEFAULT 'en_attente', -- 'paye', 'partiel', 'en_attente', 'retard'
     notes TEXT DEFAULT '',
     receipt_sent_date TEXT,        -- Date d'envoi de quittance
-    document_id INTEGER,           -- Référence vers le document PDF dans la GED
+    document_id INTEGER,           -- Référence vers la quittance PDF dans la GED
+    notice_document_id INTEGER,    -- Référence vers l'appel de loyer PDF dans la GED
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE CASCADE,
     FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE CASCADE,
-    FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE SET NULL
+    FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE SET NULL,
+    FOREIGN KEY (notice_document_id) REFERENCES documents (id) ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rent_tenant_period 

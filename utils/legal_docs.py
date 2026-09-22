@@ -5,7 +5,18 @@ Générateur de documents juridiques et administratifs pour la gestion de SCI.
 - Mise en demeure de payer (J+21 - Clause résolutoire)
 - Procès-Verbal d'Assemblée Générale Ordinaire (PV d'AGO annuelle d'approbation des comptes)
 """
-from typing import Dict, Any
+import io
+import os
+from datetime import date, datetime
+from typing import Dict, Any, Optional, Tuple
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+
+from database import query_one, execute_write
+from utils import storage
 
 MONTH_NAMES = [
     "", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
@@ -19,11 +30,13 @@ def generate_avis_echeance_html(
     property_info: Dict[str, Any],
     month: int,
     year: int,
-    due_date: str
+    due_date: str,
+    rent_amount: Optional[float] = None,
+    charges_amount: Optional[float] = None
 ) -> str:
     period_str = f"{MONTH_NAMES[month]} {year}"
-    rent = float(tenant.get("rent_amount", 0.0))
-    charges = float(tenant.get("charges_provision", 0.0))
+    rent = float(rent_amount if rent_amount is not None else tenant.get("rent_amount", 0.0) or 0.0)
+    charges = float(charges_amount if charges_amount is not None else tenant.get("charges_provision", 0.0) or 0.0)
     total = rent + charges
 
     html = f"""<!DOCTYPE html>
@@ -180,6 +193,338 @@ def generate_avis_echeance_html(
 </html>
 """
     return html
+
+
+def generate_avis_echeance_pdf(
+    sci_info: Dict[str, Any],
+    tenant: Dict[str, Any],
+    property_info: Dict[str, Any],
+    month: int,
+    year: int,
+    due_date: str,
+    rent_amount: Optional[float] = None,
+    charges_amount: Optional[float] = None,
+    payment_id: Optional[int] = None
+) -> bytes:
+    """
+    Génère un document PDF vectoriel de haute qualité pour l'Avis d'Échéance / Appel de Loyer.
+    """
+    month_str = MONTH_NAMES[month] if 1 <= month <= 12 else str(month)
+    period_str = f"{month_str} {year}"
+
+    rent = float(rent_amount if rent_amount is not None else tenant.get("rent_amount", 0.0) or 0.0)
+    charges = float(charges_amount if charges_amount is not None else tenant.get("charges_provision", 0.0) or 0.0)
+    total = rent + charges
+
+    issue_date = date.today().strftime("%d/%m/%Y")
+    due_date_str = str(due_date)[:10]
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36
+    )
+
+    styles = getSampleStyleSheet()
+
+    primary_color = colors.HexColor("#1e3a8a")
+    secondary_color = colors.HexColor("#2563eb")
+    text_dark = colors.HexColor("#1e293b")
+    text_muted = colors.HexColor("#64748b")
+    bg_light = colors.HexColor("#f8fafc")
+    border_color = colors.HexColor("#cbd5e1")
+
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        leading=22,
+        textColor=primary_color,
+        fontName="Helvetica-Bold"
+    )
+    ref_style = ParagraphStyle(
+        'DocRef',
+        parent=styles['Normal'],
+        fontSize=9.5,
+        leading=13.5,
+        textColor=text_muted,
+        alignment=2
+    )
+    box_header_style = ParagraphStyle(
+        'BoxHeader',
+        parent=styles['Normal'],
+        fontSize=9.5,
+        leading=12,
+        textColor=secondary_color,
+        fontName="Helvetica-Bold"
+    )
+    body_style = ParagraphStyle(
+        'Body',
+        parent=styles['Normal'],
+        fontSize=9,
+        leading=13,
+        textColor=text_dark,
+        fontName="Helvetica"
+    )
+    body_bold = ParagraphStyle(
+        'BodyBold',
+        parent=styles['Normal'],
+        fontSize=9.5,
+        leading=13.5,
+        textColor=text_dark,
+        fontName="Helvetica-Bold"
+    )
+    callout_style = ParagraphStyle(
+        'Callout',
+        parent=styles['Normal'],
+        fontSize=8.5,
+        leading=12.5,
+        textColor=colors.HexColor("#1e40af"),
+        fontName="Helvetica"
+    )
+
+    story = []
+
+    # 1. En-tête
+    ref_display = f"#{int(payment_id):05d}" if payment_id else f"ECH-{year}-{month:02d}"
+    header_data = [
+        [
+            Paragraph(f"<b>AVIS D'ÉCHÉANCE / APPEL DE LOYER</b><br/><font size='9.5' color='#64748b'>Période du terme : <b>{period_str}</b></font>", title_style),
+            Paragraph(f"<b>Réf :</b> {ref_display}<br/><b>Date d'émission :</b> {issue_date}<br/><b>Date limite :</b> <font color='#b91c1c'><b>{due_date_str}</b></font>", ref_style)
+        ]
+    ]
+    header_table = Table(header_data, colWidths=[310, 213])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(header_table)
+    story.append(HRFlowable(width="100%", thickness=2, color=secondary_color, spaceBefore=2, spaceAfter=14))
+
+    # 2. Parties (Bailleur & Locataire)
+    sci_name = sci_info.get("name", "Ma SCI Immobilière")
+    siren = f"SIREN : {sci_info.get('siren')}<br/>" if sci_info.get('siren') else ""
+    manager = f"Gérant : {sci_info.get('manager_name')}<br/>" if sci_info.get('manager_name') else ""
+    contact = f"Email : {sci_info.get('manager_email')}" if sci_info.get('manager_email') else ""
+    sci_addr = f"{sci_info.get('address', '')}<br/>{sci_info.get('postal_code', '')} {sci_info.get('city', '')}".strip()
+
+    t_first = tenant.get("first_name", "")
+    t_last = (tenant.get("last_name") or "").upper()
+    p_name = property_info.get("name", "")
+    p_addr = property_info.get("address", "")
+    p_cp_city = f"{property_info.get('postal_code', '')} {property_info.get('city', '')}".strip()
+
+    bailleur_html = f"<b>{sci_name}</b><br/>{siren}{sci_addr}<br/>{manager}{contact}"
+    locataire_html = f"<b>{t_first} {t_last}</b><br/>Logement loué : <b>{p_name}</b><br/>{p_addr}<br/>{p_cp_city}"
+
+    parties_data = [
+        [
+            Paragraph("BAILLEUR (CRÉANCIER)", box_header_style),
+            Paragraph("LOCATAIRE (DÉBITEUR)", box_header_style)
+        ],
+        [
+            Paragraph(bailleur_html, body_style),
+            Paragraph(locataire_html, body_style)
+        ]
+    ]
+    parties_table = Table(parties_data, colWidths=[255, 268])
+    parties_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), bg_light),
+        ('BOX', (0,0), (0,1), 1, border_color),
+        ('BOX', (1,0), (1,1), 1, border_color),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+    ]))
+    story.append(parties_table)
+    story.append(Spacer(1, 14))
+
+    # 3. Tableau de ventilation
+    table_data = [
+        [Paragraph("<b>Désignation du terme</b>", body_style), Paragraph("<b>Montant (€)</b>", ParagraphStyle('TR', parent=body_style, alignment=2))],
+        [Paragraph(f"Loyer mensuel principal ({period_str})", body_style), Paragraph(f"{rent:,.2f} €", ParagraphStyle('TR', parent=body_style, alignment=2))],
+        [Paragraph(f"Provision mensuelle sur charges locatives ({period_str})", body_style), Paragraph(f"{charges:,.2f} €", ParagraphStyle('TR', parent=body_style, alignment=2))],
+        [Paragraph("<b>Total exigible pour la période</b>", body_bold), Paragraph(f"<b>{total:,.2f} €</b>", ParagraphStyle('TRB', parent=body_bold, alignment=2))],
+        [Paragraph(f"<b>NET À RÉGLER AVANT LE {due_date_str}</b>", body_bold), Paragraph(f"<b>{total:,.2f} €</b>", ParagraphStyle('TRB2', parent=body_bold, alignment=2, textColor=secondary_color))]
+    ]
+    breakdown_table = Table(table_data, colWidths=[380, 143])
+    breakdown_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f1f5f9")),
+        ('LINEBELOW', (0,0), (-1,0), 1.5, primary_color),
+        ('LINEBELOW', (0,1), (-1,-2), 0.5, border_color),
+        ('LINEBELOW', (0,-2), (-1,-2), 1.5, primary_color),
+        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor("#eff6ff")),
+        ('LINEBELOW', (0,-1), (-1,-1), 1.5, secondary_color),
+        ('TOPPADDING', (0,0), (-1,-1), 7),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 7),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    story.append(breakdown_table)
+    story.append(Spacer(1, 14))
+
+    # 4. Coordonnées bancaires pour le règlement
+    iban_val = sci_info.get('iban') or 'À renseigner dans les Paramètres'
+    bic_val = sci_info.get('bic') or ''
+    bank_html = (
+        f"<b>COORDONNÉES BANCAIRES POUR LE RÈGLEMENT PAR VIREMENT :</b><br/>"
+        f"Bénéficiaire : <b>{sci_name}</b><br/>"
+        f"IBAN : <b>{iban_val}</b> &nbsp;&nbsp;&nbsp; BIC : <b>{bic_val}</b><br/>"
+        f"Motif obligatoire du virement : <em>Loyer {period_str} - {t_last}</em>"
+    )
+    bank_data = [[Paragraph(bank_html, body_style)]]
+    bank_table = Table(bank_data, colWidths=[523])
+    bank_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f0fdf4")),
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#86efac")),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+    ]))
+    story.append(bank_table)
+    story.append(Spacer(1, 14))
+
+    # 5. Avertissement légal
+    legal_text = (
+        "<b>Important :</b> Ce document constitue un <b>avis d'échéance valant appel de loyer</b> et ne vaut en aucun cas quittance de paiement. "
+        "Conformément à l'article 21 de la loi n° 89-462 du 6 juillet 1989, une quittance de loyer vous sera délivrée sans frais dès parfait encaissement de votre règlement."
+    )
+    callout_data = [[Paragraph(legal_text, callout_style)]]
+    callout_table = Table(callout_data, colWidths=[523])
+    callout_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#eff6ff")),
+        ('LINELEFT', (0,0), (0,0), 3.5, secondary_color),
+        ('TOPPADDING', (0,0), (-1,-1), 7),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 7),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+    ]))
+    story.append(callout_table)
+    story.append(Spacer(1, 14))
+
+    # 6. Signatures & Mentions
+    sign_city = sci_info.get("city") or property_info.get("city") or "Paris"
+    footer_data = [
+        [
+            Paragraph(
+                "<em>Document établi et transmis par le bailleur. "
+                "À conserver par le locataire à titre de justificatif d'appel de loyer.</em>",
+                ParagraphStyle('FN', parent=styles['Normal'], fontSize=7.5, leading=10, textColor=colors.HexColor("#94a3b8"), fontName="Helvetica-Oblique")
+            ),
+            Paragraph(
+                f"Fait à {sign_city}, le {issue_date}<br/><b>Le Bailleur / La SCI</b>",
+                ParagraphStyle('FS', parent=body_style, alignment=2)
+            )
+        ]
+    ]
+    footer_table = Table(footer_data, colWidths=[310, 213])
+    footer_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING', (0,0), (-1,-1), 4),
+        ('RIGHTPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(footer_table)
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def save_avis_echeance_to_ged(
+    sci_info: Dict[str, Any],
+    tenant: Dict[str, Any],
+    property_info: Dict[str, Any],
+    month: int,
+    year: int,
+    due_date: str,
+    rent_amount: Optional[float] = None,
+    charges_amount: Optional[float] = None,
+    payment_id: Optional[int] = None
+) -> Tuple[bool, str, Optional[int]]:
+    """
+    Génère l'Appel de loyer (Avis d'échéance) en PDF et l'enregistre / référence dans la GED
+    (table documents) rattachée au locataire et au bien immobilier.
+    Si payment_id est fourni, met à jour rent_payments.notice_document_id.
+
+    Retourne (succès: bool, message: str, document_id: Optional[int]).
+    """
+    try:
+        pdf_bytes = generate_avis_echeance_pdf(
+            sci_info, tenant, property_info, month, year, due_date,
+            rent_amount=rent_amount, charges_amount=charges_amount, payment_id=payment_id
+        )
+        file_size = len(pdf_bytes)
+
+        month_str = MONTH_NAMES[month] if 1 <= month <= 12 else str(month)
+        t_last = (tenant.get("last_name") or "Locataire").strip().replace(" ", "_")
+        filename = f"Appel_Loyer_{t_last}_{year}_{month:02d}.pdf"
+
+        rent = float(rent_amount if rent_amount is not None else tenant.get("rent_amount", 0.0) or 0.0)
+        charges = float(charges_amount if charges_amount is not None else tenant.get("charges_provision", 0.0) or 0.0)
+        total = rent + charges
+
+        # Stockage dans le coffre-fort numérique GED (Cloudinary)
+        public_id, secure_url, _ = storage.upload_file(pdf_bytes, filename)
+
+        notes_str = f"Avis d'échéance / Appel de loyer {month_str} {year} - {total:.2f} € (Terme {month:02d}/{year})"
+
+        tenant_id = tenant.get("id")
+        property_id = property_info.get("id") or tenant.get("property_id")
+
+        category_name = "Appel de loyer & Avis d'échéance"
+
+        # Vérifier si un document pour ce terme existe déjà
+        existing_row = query_one("""
+            SELECT id, cloudinary_public_id FROM documents
+            WHERE category = ?
+              AND tenant_id = ?
+              AND notes LIKE ?;
+        """, [category_name, tenant_id, f"%Terme {month:02d}/{year}%"])
+
+        if existing_row:
+            final_doc_id = existing_row["id"]
+            old_pub = existing_row.get("cloudinary_public_id")
+            if old_pub and old_pub != public_id:
+                try:
+                    storage.delete_file(old_pub)
+                except Exception:
+                    pass
+
+            execute_write("""
+                UPDATE documents
+                SET filename = ?, file_path = ?, cloudinary_public_id = ?, file_size = ?, notes = ?, uploaded_at = CURRENT_TIMESTAMP
+                WHERE id = ?;
+            """, [filename, secure_url, public_id, file_size, notes_str, final_doc_id])
+        else:
+            final_doc_id = execute_write("""
+                INSERT INTO documents (
+                    category, entity_type, entity_id, property_id, tenant_id,
+                    filename, file_path, cloudinary_public_id, file_size, notes
+                ) VALUES (
+                    ?, 'tenant', ?, ?, ?,
+                    ?, ?, ?, ?, ?
+                );
+            """, [category_name, tenant_id, property_id, tenant_id, filename, secure_url, public_id, file_size, notes_str])
+
+        # Associer notice_document_id sur rent_payments si payment_id fourni
+        if payment_id:
+            try:
+                execute_write("UPDATE rent_payments SET notice_document_id = ? WHERE id = ?;", [final_doc_id, payment_id])
+            except Exception:
+                pass
+
+        return True, f"Appel de loyer PDF enregistré et classé dans la GED sous la référence #{final_doc_id}.", final_doc_id
+
+    except Exception as e:
+        return False, f"Erreur lors de la génération / archivage de l'appel de loyer : {str(e)}", None
+
 
 # 2. RELANCE AMIABLE D'IMPAYE (J+7)
 def generate_relance_amiable_html(

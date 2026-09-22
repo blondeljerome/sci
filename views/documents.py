@@ -27,6 +27,7 @@ CATEGORIES_GED = [
     "Statuts, Kbis & Documents SCI",
     "Offre de prêt & Contrat de crédit",
     "Quittance & Reçu de paiement",
+    "Appel de loyer & Avis d'échéance",
     "Autre pièce justificative"
 ]
 
@@ -36,28 +37,69 @@ def format_file_size(size_bytes: int) -> str:
         return f"{size_kb:.1f} Ko"
     return f"{size_kb / 1024.0:.2f} Mo"
 
-def render_doc_button(file_url: str, filename: str, key: str, label: str = "⬇️ Ouvrir / Télécharger"):
-    import os
-    if file_url and file_url.startswith("http"):
-        st.link_button(label, url=file_url, use_container_width=True)
-    elif file_url:
-        if os.path.exists(file_url):
-            with open(file_url, "rb") as f:
+@st.cache_data(show_spinner=False, ttl=1800)
+def fetch_cloud_doc_bytes(public_id: str) -> Optional[bytes]:
+    """Télécharge le document original en temps réel depuis le coffre-fort Cloudinary (GED)."""
+    return storage.download_file_bytes(public_id)
+
+def render_doc_button(doc: dict, key: str):
+    """
+    Affiche les actions pour un document de la GED :
+    - 👁️ Voir : Ouvre l'aperçu hébergé sur Cloudinary (200 OK garanti)
+    - ⬇️ Télécharger : Télécharge le fichier original (PDF) directement depuis la GED Cloudinary
+    """
+    public_id = doc.get("cloudinary_public_id", "")
+    file_url = doc.get("file_path", "")
+    filename = doc.get("filename", "document.pdf")
+    if not filename.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg', '.docx', '.xlsx')):
+        filename += ".pdf"
+
+    col_view, col_dl = st.columns(2)
+
+    with col_view:
+        preview_url = storage.get_preview_url(public_id, file_url)
+        if preview_url and preview_url.startswith("http"):
+            st.link_button("👁️ Voir", url=preview_url, use_container_width=True, help="Ouvrir dans Cloudinary")
+        elif file_url and file_url.startswith("http"):
+            st.link_button("👁️ Voir", url=file_url, use_container_width=True)
+
+    with col_dl:
+        if public_id:
+            doc_bytes = fetch_cloud_doc_bytes(public_id)
+            if doc_bytes:
+                mime_type = "application/pdf" if filename.lower().endswith(".pdf") else "application/octet-stream"
                 st.download_button(
-                    label=label,
-                    data=f.read(),
+                    label="⬇️ Télécharger",
+                    data=doc_bytes,
                     file_name=filename,
-                    key=key,
-                    use_container_width=True
+                    mime=mime_type,
+                    key=f"dl_{key}_{doc['id']}",
+                    use_container_width=True,
+                    help="Télécharger le fichier original depuis Cloudinary"
                 )
+            else:
+                st.caption("Fichier GED")
         else:
-            st.caption("Fichier introuvable")
-    else:
-        st.caption("Fichier introuvable")
+            st.caption("Fichier GED")
 
 def render_documents():
     st.markdown("## 📎 Coffre-fort Numérique (GED)")
     st.caption("Conservez, classez et téléchargez tous les documents administratifs, baux signés, diagnostics et factures de votre SCI.")
+
+    with st.expander("ℹ️ **Information sur les liens Cloudinary & l'accès direct aux PDF**", expanded=False):
+        st.markdown(
+            """
+            **Pourquoi un lien Cloudinary peut-il afficher `401 Unauthorized / deny or ACL failure` ?**  
+            Par défaut, Cloudinary désactive la distribution des fichiers `.pdf` et `.zip` pour des raisons de sécurité sur les comptes récents.
+
+            👉 **Pour activer l'ouverture directe des liens Cloudinary dans un nouvel onglet :**  
+            1. Rendez-vous sur votre console [Cloudinary](https://cloudinary.com/console).  
+            2. Ouvrez **Settings (⚙️)** en haut à droite > onglet **Security**.  
+            3. Dans la section **PDF and ZIP files delivery**, cochez **« Allow delivery of PDF and ZIP files »** et enregistrez (**Save**).  
+
+            ✨ **Téléchargement direct dans l'application :** Les boutons **« ⬇️ Télécharger »** ci-dessous fonctionnent directement et téléchargent vos PDF immédiatement sans passer par la restriction Cloudinary.
+            """
+        )
 
     tab_vault, tab_by_entity, tab_upload = st.tabs([
         "📂 Tous les Documents",
@@ -197,7 +239,7 @@ def render_documents():
 
                     with c2:
                         st.write("")
-                        render_doc_button(file_url, doc["filename"], key=f"dl_doc_{doc['id']}")
+                        render_doc_button(doc, key=f"v_{doc['id']}")
 
                     with c3:
                         st.write("")
@@ -243,12 +285,12 @@ def render_documents():
                     else:
                         for d in lot_docs:
                             with st.container():
-                                cd1, cd2 = st.columns([4, 1])
+                                cd1, cd2 = st.columns([3, 2])
                                 cd1.markdown(f"📄 **{d['filename']}** • `{d['category']}` • {format_file_size(d.get('file_size', 0))}")
                                 if d.get("notes"):
                                     cd1.caption(f"📝 {d['notes']}")
                                 with cd2:
-                                    render_doc_button(d.get("file_path", ""), d["filename"], key=f"dl_lot_{d['id']}", label="⬇️ Voir")
+                                    render_doc_button(d, key=f"lot_{d['id']}")
                                 st.divider()
 
                     st.markdown("##### 👥 Documents des Baux & Locataires de ce Bien")
@@ -258,12 +300,12 @@ def render_documents():
                         for d in tenant_docs:
                             t_name = f"{d.get('ten_first_name', '')} {d.get('ten_last_name', '')}".strip() or "Locataire"
                             with st.container():
-                                cd1, cd2 = st.columns([4, 1])
+                                cd1, cd2 = st.columns([3, 2])
                                 cd1.markdown(f"📄 **{d['filename']}** • 👤 **{t_name}** • `{d['category']}`")
                                 if d.get("notes"):
                                     cd1.caption(f"📝 {d['notes']}")
                                 with cd2:
-                                    render_doc_button(d.get("file_path", ""), d["filename"], key=f"dl_tenprop_{d['id']}", label="⬇️ Voir")
+                                    render_doc_button(d, key=f"tenprop_{d['id']}")
                                 st.divider()
 
         else: # Par Locataire
@@ -284,12 +326,12 @@ def render_documents():
                     else:
                         for d in ten_docs:
                             with st.container():
-                                cd1, cd2 = st.columns([4, 1])
+                                cd1, cd2 = st.columns([3, 2])
                                 cd1.markdown(f"📄 **{d['filename']}** • `{d['category']}` • {format_file_size(d.get('file_size', 0))}")
                                 if d.get("notes"):
                                     cd1.caption(f"📝 {d['notes']}")
                                 with cd2:
-                                    render_doc_button(d.get("file_path", ""), d["filename"], key=f"dl_tendoc_{d['id']}", label="⬇️ Voir")
+                                    render_doc_button(d, key=f"tendoc_{d['id']}")
                                 st.divider()
 
     # 3. TELEVERSER UN DOCUMENT

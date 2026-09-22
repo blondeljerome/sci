@@ -10,8 +10,11 @@ import streamlit.components.v1 as components
 import pandas as pd
 from datetime import date
 from database import query_rows, query_one, execute_write
+from utils import storage
 from utils.legal_docs import (
     generate_avis_echeance_html,
+    generate_avis_echeance_pdf,
+    save_avis_echeance_to_ged,
     generate_relance_amiable_html,
     generate_mise_en_demeure_html,
     generate_pv_ago_html,
@@ -61,29 +64,64 @@ def render_legal():
             due_date_str = f"{sel_y:04d}-{sel_m:02d}-05"
 
             if sel_t:
-                p_info = {"address": sel_t["prop_address"], "city": sel_t["prop_city"], "postal_code": sel_t["prop_postal"]}
+                p_info = {"id": sel_t["property_id"], "name": sel_t["property_name"], "address": sel_t["prop_address"], "city": sel_t["prop_city"], "postal_code": sel_t["prop_postal"]}
                 html_avis = generate_avis_echeance_html(sci_info, sel_t, p_info, sel_m, sel_y, due_date_str)
+                pdf_avis = generate_avis_echeance_pdf(sci_info, sel_t, p_info, sel_m, sel_y, due_date_str)
+                pdf_avis_name = f"appel_loyer_{sel_t['last_name']}_{sel_y}_{sel_m:02d}.pdf"
 
-                c_act1, c_act2 = st.columns([1, 1])
+                # Vérifier si déjà archivé dans la GED
+                existing_doc = query_one("""
+                    SELECT id, file_path, cloudinary_public_id FROM documents 
+                    WHERE category = ? 
+                      AND tenant_id = ? 
+                      AND notes LIKE ?;
+                """, ["Appel de loyer & Avis d'échéance", sel_t["id"], f"%Terme {sel_m:02d}/{sel_y}%"])
+
+                c_act1, c_act2, c_act3 = st.columns(3)
                 with c_act1:
+                    # Téléchargement direct depuis la GED si déjà archivé
+                    ged_bytes = None
+                    if existing_doc and existing_doc.get("cloudinary_public_id"):
+                        ged_bytes = storage.download_file_bytes(existing_doc["cloudinary_public_id"])
+                    dl_data = ged_bytes if ged_bytes else pdf_avis
                     st.download_button(
-                        label="💾 Télécharger l'Avis d'Échéance (HTML/PDF)",
-                        data=html_avis,
-                        file_name=f"avis_echeance_{sel_t['last_name']}_{sel_y}_{sel_m:02d}.html",
-                        mime="text/html",
-                        key="dl_avis"
+                        label="📥 Télécharger l'Avis (GED)" if ged_bytes else "📥 Télécharger l'Avis (PDF)",
+                        data=dl_data,
+                        file_name=pdf_avis_name,
+                        mime="application/pdf",
+                        key="dl_avis_pdf",
+                        use_container_width=True
                     )
                 with c_act2:
+                    ged_btn_label = "✅ Appel à jour dans la GED" if existing_doc else "📎 Archiver dans la GED"
+                    if st.button(ged_btn_label, key="save_ged_avis_btn", use_container_width=True):
+                        # Chercher paiement éventuel associé pour mise à jour
+                        p_match = query_one("SELECT id FROM rent_payments WHERE tenant_id = ? AND period_month = ? AND period_year = ?;", [sel_t["id"], sel_m, sel_y])
+                        p_match_id = p_match["id"] if p_match else None
+                        ok_g, msg_g, _ = save_avis_echeance_to_ged(
+                            sci_info, sel_t, p_info, sel_m, sel_y, due_date_str,
+                            payment_id=p_match_id
+                        )
+                        if ok_g:
+                            st.success(msg_g)
+                            st.rerun()
+                        else:
+                            st.error(msg_g)
+                with c_act3:
                     if sel_t.get("email"):
-                        if st.button(f"📧 Envoyer l'avis par email à {sel_t['email']}", key="send_email_avis"):
+                        if st.button(f"📧 Envoyer par email (PDF)", key="send_email_avis", use_container_width=True):
                             subject = f"Avis d'échéance - Loyer {MONTH_NAMES[sel_m]} {sel_y} - {sci_info.get('name')}"
-                            success, msg = send_email(sel_t["email"], subject, html_avis, f"Avis_{MONTH_NAMES[sel_m]}_{sel_y}.html", html_avis)
+                            success, msg = send_email(sel_t["email"], subject, html_avis, pdf_avis_name, pdf_avis)
                             if success:
                                 st.success(msg)
                             else:
                                 st.error(msg)
                     else:
-                        st.caption("⚠️ Aucun email renseigné sur la fiche de ce locataire.")
+                        st.caption("⚠️ Aucun email renseigné pour ce locataire.")
+
+                if existing_doc and (existing_doc.get("cloudinary_public_id") or existing_doc.get("file_path")):
+                    ged_preview = storage.get_preview_url(existing_doc.get("cloudinary_public_id"), existing_doc.get("file_path"))
+                    st.markdown(f"✅ **Document archivé dans la GED Cloudinary :** [👁️ Voir dans le navigateur (Cloudinary)]({ged_preview})")
 
                 components.html(html_avis, height=520, scrolling=True)
 

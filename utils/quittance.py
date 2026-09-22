@@ -507,18 +507,8 @@ def save_quittance_to_ged(
         filename = f"Quittance_{t_last}_{p_year}_{p_month:02d}.pdf"
         paid_amount = float(payment.get("amount_paid", 0.0) or 0.0)
 
-        # Upload vers Cloudinary ou fallback local
-        public_id = ""
-        secure_url = ""
-        try:
-            public_id, secure_url, _ = storage.upload_file(pdf_bytes, filename)
-        except Exception:
-            # Fallback local
-            os.makedirs("data/documents", exist_ok=True)
-            local_path = f"data/documents/{filename}"
-            with open(local_path, "wb") as f:
-                f.write(pdf_bytes)
-            secure_url = local_path
+        # Stockage dans le coffre-fort numérique GED (Cloudinary)
+        public_id, secure_url, _ = storage.upload_file(pdf_bytes, filename)
 
         notes_str = f"Quittance de loyer {month_str} {p_year} - {paid_amount:.2f} € (Échéance #{payment_id})"
 

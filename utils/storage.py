@@ -103,4 +103,64 @@ def get_file_url(public_id: str, resource_type: str = "raw") -> Optional[str]:
         return None
 
     _ensure_configured()
-    return cloudinary.CloudinaryImage(public_id).build_url(secure=True, resource_type=resource_type)
+    import cloudinary.utils
+    url, _ = cloudinary.utils.cloudinary_url(
+        public_id,
+        resource_type=resource_type,
+        secure=True,
+    )
+    return url
+
+
+def get_preview_url(public_id: str, original_url: str = "") -> str:
+    """
+    Retourne une URL Cloudinary optimisée pour l'ouverture / prévisualisation dans le navigateur.
+    Pour les PDF, génère une URL de rendu PNG haute résolution sur Cloudinary,
+    ce qui permet l'ouverture immédiate sans blocage ACL / 401 CDN.
+    """
+    if not public_id:
+        return original_url or ""
+
+    _ensure_configured()
+    import cloudinary.utils
+    try:
+        # Conversion instantanée sur Cloudinary vers PNG (page 1) pour affichage web sans blocage
+        preview_url, _ = cloudinary.utils.cloudinary_url(
+            public_id,
+            resource_type="image",
+            format="png",
+            secure=True
+        )
+        return preview_url
+    except Exception:
+        return original_url or ""
+
+
+def download_file_bytes(public_id: str, resource_type: str = "image") -> Optional[bytes]:
+    """
+    Télécharge le contenu binaire brut d'un document directement depuis Cloudinary (GED)
+    via l'API authentifiée. Contourne toute restriction CDN publique.
+    """
+    if not public_id:
+        return None
+
+    _ensure_configured()
+    import urllib.request
+    import zipfile
+    import io
+    import cloudinary.utils
+
+    for rt in (resource_type, "image", "raw"):
+        try:
+            zip_url = cloudinary.utils.download_zip_url(public_ids=[public_id], resource_type=rt)
+            req = urllib.request.Request(zip_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = resp.read()
+                z = zipfile.ZipFile(io.BytesIO(data))
+                names = z.namelist()
+                if names:
+                    return z.read(names[0])
+        except Exception:
+            continue
+
+    return None
