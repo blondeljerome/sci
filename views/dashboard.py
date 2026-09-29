@@ -7,6 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 from database import query_df, query_rows
+from utils.formatters import format_currency, format_percentage, parse_date
 
 def render_dashboard():
     st.markdown("## 📊 Tableau de Bord Financier & Locatif")
@@ -59,29 +60,29 @@ def render_dashboard():
     with col1:
         st.metric(
             label=f"Loyers Encaissés ({current_year})",
-            value=f"{total_collected_year:,.2f} €".replace(",", " "),
+            value=format_currency(total_collected_year),
             help="Total des loyers et charges effectivement perçus cette année."
         )
     with col2:
         st.metric(
             label="Total Dépenses de l'Exercice",
-            value=f"{total_expenses:,.2f} €".replace(",", " "),
-            delta=f"-{total_expenses:,.2f} €" if total_expenses > 0 else "0 €",
+            value=format_currency(total_expenses),
+            delta=f"-{format_currency(total_expenses)}" if total_expenses > 0 else "0 €",
             delta_color="inverse",
             help="Somme des charges SCI (emprunts, assurances, gestion) et charges d'appartements."
         )
     with col3:
         st.metric(
             label="Cash-Flow Net Trésorerie",
-            value=f"{net_cashflow:,.2f} €".replace(",", " "),
-            delta=f"{net_cashflow:+,.2f} €".replace(",", " "),
+            value=format_currency(net_cashflow),
+            delta=format_currency(net_cashflow, include_sign=True),
             delta_color="normal" if net_cashflow >= 0 else "inverse",
             help="Loyers encaissés - Ensemble des dépenses réelles."
         )
     with col4:
         st.metric(
             label="Taux d'Occupation",
-            value=f"{occ_rate:.1f} %",
+            value=format_percentage(occ_rate),
             delta=f"{rented_props}/{total_props} biens loués",
             delta_color="off",
             help="Pourcentage de lots actuellement occupés par un locataire actif."
@@ -91,7 +92,7 @@ def render_dashboard():
 
     # 3. Alertes / Loyers en retard
     if not late_rents_df.empty:
-        st.warning(f"⚠️ **{len(late_rents_df)} échéance(s) en attente ou impayée(s)** pour un montant total de **{total_unpaid:,.2f} €**.")
+        st.warning(f"⚠️ **{len(late_rents_df)} échéance(s) en attente ou impayée(s)** pour un montant total de **{format_currency(total_unpaid)}**.")
         with st.expander("Voir le détail des loyers non soldés", expanded=True):
             display_df = late_rents_df[["tenant_name", "prop_name", "period_month", "period_year", "total_due", "amount_paid", "balance", "status", "due_date"]].copy()
             display_df.columns = ["Locataire", "Bien", "Mois", "Année", "Total Dû (€)", "Payé (€)", "Solde Restant (€)", "Statut", "Échéance"]
@@ -105,7 +106,6 @@ def render_dashboard():
     with g_col1:
         st.markdown("#### Évolution Mensuelle des Flux")
         # Préparer le tableau des 12 mois
-        months = list(range(1, 13))
         month_names = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"]
         
         income_by_month = [0.0] * 12
@@ -118,18 +118,14 @@ def render_dashboard():
         expenses_by_month = [0.0] * 12
         # Charges SCI
         for _, r in sci_exp_df.iterrows():
-            try:
-                dt = datetime.strptime(str(r["date"])[:10], "%Y-%m-%d")
-                expenses_by_month[dt.month - 1] += float(r["amount"])
-            except Exception:
-                pass
+            d = parse_date(r.get("date"))
+            if d:
+                expenses_by_month[d.month - 1] += float(r["amount"])
         # Charges Lots
         for _, r in prop_exp_df.iterrows():
-            try:
-                dt = datetime.strptime(str(r["date"])[:10], "%Y-%m-%d")
-                expenses_by_month[dt.month - 1] += float(r["amount"])
-            except Exception:
-                pass
+            d = parse_date(r.get("date"))
+            if d:
+                expenses_by_month[d.month - 1] += float(r["amount"])
 
         fig_bar = go.Figure()
         fig_bar.add_trace(go.Bar(

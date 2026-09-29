@@ -4,6 +4,7 @@ Vue Gestion du Patrimoine Immobilier - Biens, Appartements et Lots (Adaptée SCI
 import streamlit as st
 import pandas as pd
 from database import query_df, query_rows, query_one, execute_write
+from utils.formatters import format_currency
 
 def render_properties():
     st.markdown("## 🏢 Gestion du Patrimoine Immobilier (SCI à l'IS)")
@@ -80,25 +81,25 @@ def render_properties():
                         st.markdown(f"**Adresse :** {prop.get('address', '')}, {prop.get('postal_code', '')} {prop.get('city', '')}")
                         if prop.get("current_tenant"):
                             st.markdown(f"**Locataire :** {prop.get('current_tenant')}")
-                            st.markdown(f"**Loyer :** {prop.get('current_rent', 0):.2f} € + {prop.get('current_charges', 0):.2f} € ch.")
+                            st.markdown(f"**Loyer :** {format_currency(prop.get('current_rent', 0))} + {format_currency(prop.get('current_charges', 0))} ch.")
                         else:
-                            st.markdown(f"**Loyer cible :** {prop.get('target_rent', 0):.2f} € HC")
+                            st.markdown(f"**Loyer cible :** {format_currency(prop.get('target_rent', 0))} HC")
                     with c2:
                         door_str = f" - Porte {prop.get('door_number')}" if prop.get("door_number") else ""
                         st.markdown(f"**Surface :** {prop.get('surface', 0)} m² ({prop.get('rooms', 1)} pièces)")
                         st.markdown(f"**Étage :** {prop.get('floor', 0)}{door_str}")
                         st.markdown(f"**Tantièmes copro :** {prop.get('tantiemes', 1000)} / 1000")
                     with c3:
-                        st.markdown(f"**Coût d'acquisition :** {acq_price:,.2f} €".replace(",", " "))
-                        st.caption(f"Frais de notaire : {notary:,.2f} €")
-                        st.markdown(f"**Terrain (non amorti) :** {land_value:,.2f} € ({land_pct:.0f}%)")
-                        st.markdown(f"**Bâti amortissable :** {building_amort_base:,.2f} €")
+                        st.markdown(f"**Coût d'acquisition :** {format_currency(acq_price)}")
+                        st.caption(f"Frais de notaire : {format_currency(notary)}")
+                        st.markdown(f"**Terrain (non amorti) :** {format_currency(land_value)} ({land_pct:.0f}%)")
+                        st.markdown(f"**Bâti amortissable :** {format_currency(building_amort_base)}")
                     with c4:
                         st.markdown(f"**Amortissement Immeuble :**")
-                        st.markdown(f"**{annual_building_amort:,.2f} € / an** ({amort_years} ans)")
+                        st.markdown(f"**{format_currency(annual_building_amort)} / an** ({amort_years} ans)")
                         if furn_val > 0:
-                            st.markdown(f"**Meubles :** +{annual_furn_amort:,.2f} € / an ({furn_years} ans)")
-                        st.success(f"📉 **Déduction IS totale :** **{total_annual_amort:,.2f} € / an**")
+                            st.markdown(f"**Meubles :** +{format_currency(annual_furn_amort)} / an ({furn_years} ans)")
+                        st.success(f"📉 **Déduction IS totale :** **{format_currency(total_annual_amort)} / an**")
 
                     if prop.get("notes"):
                         st.caption(f"📝 Notes : {prop.get('notes')}")

@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from database import query_df, query_rows, execute_write
+from utils.formatters import format_currency
 
 CATEGORIES_SCI = [
     "Assurance PNO (Propriétaire Non Occupant)",
@@ -50,8 +51,8 @@ def render_sci_expenses():
             deductible_amt = exp_df[exp_df["is_deductible_2072"] == 1]["amount"].sum()
 
             m1, m2, m3 = st.columns(3)
-            m1.metric("Total Dépenses SCI", f"{total_amt:,.2f} €".replace(",", " "))
-            m2.metric("Déductible Fiscal (2072)", f"{deductible_amt:,.2f} €".replace(",", " "), help="Charges déductibles des revenus fonciers pour l'IR")
+            m1.metric("Total Dépenses SCI", format_currency(total_amt))
+            m2.metric("Déductible Fiscal (2072)", format_currency(deductible_amt), help="Charges déductibles des revenus fonciers pour l'IR")
             m3.metric("Nombre de factures", f"{len(exp_df)}")
 
             st.markdown("---")

@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from database import query_rows, query_one, execute_write
+from utils.formatters import format_currency
 
 CATEGORIES_LOT = [
     "Charges de copropriété (Appel de fonds)",
@@ -61,9 +62,9 @@ def render_property_expenses():
                 non_recov = tot_amt - recov_amt
 
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Total Dépenses Lots", f"{tot_amt:,.2f} €".replace(",", " "))
-                c2.metric("Récupérable (Locataire)", f"{recov_amt:,.2f} €".replace(",", " "), help="Charges incombant légalement au locataire (TEOM, eau, ascenseur...)")
-                c3.metric("Non Récupérable (Bailleur)", f"{non_recov:,.2f} €".replace(",", " "), help="Charges restant à la charge du propriétaire (gros travaux, syndic...)")
+                c1.metric("Total Dépenses Lots", format_currency(tot_amt))
+                c2.metric("Récupérable (Locataire)", format_currency(recov_amt), help="Charges incombant légalement au locataire (TEOM, eau, ascenseur...)")
+                c3.metric("Non Récupérable (Bailleur)", format_currency(non_recov), help="Charges restant à la charge du propriétaire (gros travaux, syndic...)")
 
                 st.markdown("---")
                 disp = exp_df[["date", "property_name", "category", "description", "amount", "is_recoverable", "tenant_name"]].copy()
@@ -166,31 +167,31 @@ def render_property_expenses():
                 rc1, rc2, rc3 = st.columns(3)
                 rc1.metric(
                     f"Provisions Perçues ({regu_year})",
-                    f"{total_provisions_collected:,.2f} €".replace(",", " "),
+                    format_currency(total_provisions_collected),
                     help=f"Total des avances de charges versées par le locataire sur {len(provisions_rows)} mois."
                 )
                 rc2.metric(
                     f"Charges Réelles Récupérables",
-                    f"{total_real_recoverable:,.2f} €".replace(",", " "),
+                    format_currency(total_real_recoverable),
                     help="Dépenses réelles justifiées par des factures (eau, TEOM, charges locatives)."
                 )
 
                 if diff_balance > 0:
                     rc3.metric(
                         "Solde : Complément Dû",
-                        f"+{diff_balance:,.2f} €".replace(",", " "),
+                        format_currency(diff_balance, include_sign=True),
                         delta=f"À réclamer au locataire",
                         delta_color="normal"
                     )
-                    st.warning(f"👉 **Régularisation défavorable au locataire** : Les charges réelles dépassent les provisions versées de **{diff_balance:,.2f} €**. Vous pouvez lui envoyer un appel de complément.")
+                    st.warning(f"👉 **Régularisation défavorable au locataire** : Les charges réelles dépassent les provisions versées de **{format_currency(diff_balance)}**. Vous pouvez lui envoyer un appel de complément.")
                 elif diff_balance < 0:
                     rc3.metric(
                         "Solde : Trop-Perçu",
-                        f"{diff_balance:,.2f} €".replace(",", " "),
+                        format_currency(diff_balance),
                         delta=f"À rembourser au locataire",
                         delta_color="inverse"
                     )
-                    st.info(f"👉 **Trop-perçu en faveur du locataire** : Les provisions perçues ont dépassé les dépenses réelles de **{abs(diff_balance):,.2f} €**. Vous devez lui rembourser ou déduire ce montant du prochain terme.")
+                    st.info(f"👉 **Trop-perçu en faveur du locataire** : Les provisions perçues ont dépassé les dépenses réelles de **{format_currency(abs(diff_balance))}**. Vous devez lui rembourser ou déduire ce montant du prochain terme.")
                 else:
                     rc3.metric("Solde : Équilibré", "0.00 €")
                     st.success("Les provisions correspondent exactement aux dépenses réelles !")

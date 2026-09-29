@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import date, datetime
 from database import query_rows, query_one, execute_write
 from utils import storage
+from utils.formatters import format_currency, format_percentage, get_month_name, MONTH_NAMES_FR
 from utils.quittance import generate_quittance_html, generate_quittance_pdf, save_quittance_to_ged
 from utils.legal_docs import generate_avis_echeance_html, generate_avis_echeance_pdf, save_avis_echeance_to_ged
 from utils.mailer import send_email
@@ -20,8 +21,7 @@ def render_rents():
     with col_s1:
         selected_year = st.selectbox("Année", list(range(2023, 2031)), index=list(range(2023, 2031)).index(current_date.year))
     with col_s2:
-        month_names = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
-        selected_month = st.selectbox("Mois", list(range(1, 13)), index=current_date.month - 1, format_func=lambda m: month_names[m-1])
+        selected_month = st.selectbox("Mois", list(range(1, 13)), index=current_date.month - 1, format_func=get_month_name)
     with col_s3:
         st.write("")
         st.write("")
@@ -59,9 +59,9 @@ def render_rents():
                     generated_count += 1
 
             if generated_count > 0:
-                st.success(f"{generated_count} échéance(s) et appel(s) de loyer PDF archivé(s) dans la GED pour {month_names[selected_month-1]} {selected_year} !")
+                st.success(f"{generated_count} échéance(s) et appel(s) de loyer PDF archivé(s) dans la GED pour {get_month_name(selected_month)} {selected_year} !")
             else:
-                st.info(f"Toutes les échéances pour {month_names[selected_month-1]} {selected_year} sont déjà créées.")
+                st.info(f"Toutes les échéances pour {get_month_name(selected_month)} {selected_year} sont déjà créées.")
             st.rerun()
 
     st.markdown("---")
@@ -83,7 +83,7 @@ def render_rents():
     """, [selected_month, selected_year])
 
     if not payments:
-        st.info(f"Aucune échéance enregistrée pour **{month_names[selected_month-1]} {selected_year}**. Cliquez sur le bouton ci-dessus pour générer les loyers.")
+        st.info(f"Aucune échéance enregistrée pour **{get_month_name(selected_month)} {selected_year}**. Cliquez sur le bouton ci-dessus pour générer les loyers.")
     else:
         # Résumé du mois
         total_expected = sum(p["total_due"] for p in payments)
@@ -91,9 +91,10 @@ def render_rents():
         total_pending = total_expected - total_collected
 
         m_col1, m_col2, m_col3 = st.columns(3)
-        m_col1.metric("Total Attendu", f"{total_expected:,.2f} €".replace(",", " "))
-        m_col2.metric("Total Encaissé", f"{total_collected:,.2f} €".replace(",", " "), delta=f"{total_collected/total_expected*100:.1f}%" if total_expected > 0 else "0%")
-        m_col3.metric("Reste à Percevoir", f"{total_pending:,.2f} €".replace(",", " "), delta_color="inverse")
+        m_col1.metric("Total Attendu", format_currency(total_expected))
+        pct_str = format_percentage(total_collected / total_expected * 100) if total_expected > 0 else "0%"
+        m_col2.metric("Total Encaissé", format_currency(total_collected), delta=pct_str)
+        m_col3.metric("Reste à Percevoir", format_currency(total_pending), delta_color="inverse")
 
         # Actions groupées d'archivage GED (Appels et Quittances)
         c_bulk1, c_bulk2 = st.columns(2)
@@ -130,7 +131,7 @@ def render_rents():
                     st.success(f"{archived} quittance(s) PDF archivée(s) dans la GED !")
                     st.rerun()
 
-        st.markdown(f"### 📋 Détail des échéances ({month_names[selected_month-1]} {selected_year})")
+        st.markdown(f"### 📋 Détail des échéances ({get_month_name(selected_month)} {selected_year})")
 
         for p in payments:
             is_paid = p.get("status") == "paye" or (p.get("amount_paid", 0) >= p.get("total_due", 0))
@@ -140,11 +141,11 @@ def render_rents():
                 st.markdown(f"#### 👤 {p['first_name']} {p['last_name'].upper()} — {p['property_name']} &nbsp; ({status_color})")
                 c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 2, 1])
                 with c1:
-                    st.write(f"**Loyer HC :** {p['rent_amount']:.2f} €")
-                    st.write(f"**Charges :** {p['charges_amount']:.2f} €")
-                    st.write(f"**Total Dû :** **{p['total_due']:.2f} €**")
+                    st.write(f"**Loyer HC :** {format_currency(p['rent_amount'])}")
+                    st.write(f"**Charges :** {format_currency(p['charges_amount'])}")
+                    st.write(f"**Total Dû :** **{format_currency(p['total_due'])}**")
                 with c2:
-                    st.write(f"**Encaissé :** {p['amount_paid']:.2f} €")
+                    st.write(f"**Encaissé :** {format_currency(p['amount_paid'])}")
                     st.write(f"**Date encaissement :** {p['payment_date'] or 'Non réglé'}")
                     st.write(f"**Mode :** {p['payment_method']}")
                 with c3:
@@ -194,10 +195,10 @@ def render_rents():
                 with c5:
                     with st.popover("🗑️", help="Supprimer cette échéance de loyer"):
                         st.markdown(f"**Supprimer l'échéance #{p['id']}**")
-                        st.write(f"{p['first_name']} {p['last_name']} ({month_names[selected_month-1]} {selected_year})")
-                        st.write(f"Montant dû : **{p['total_due']:.2f} €**")
+                        st.write(f"{p['first_name']} {p['last_name']} ({get_month_name(selected_month)} {selected_year})")
+                        st.write(f"Montant dû : **{format_currency(p['total_due'])}**")
                         if p.get("amount_paid", 0) > 0:
-                            st.warning(f"⚠️ {p['amount_paid']:.2f} € déjà encaissés !")
+                            st.warning(f"⚠️ {format_currency(p['amount_paid'])} déjà encaissés !")
                         if st.button("🚨 Confirmer la suppression", type="secondary", key=f"del_single_rent_{p['id']}", use_container_width=True):
                             execute_write("DELETE FROM rent_payments WHERE id = ?;", [p["id"]])
                             st.success("Échéance supprimée avec succès !")
@@ -246,7 +247,7 @@ def render_rents():
                     with an_col3:
                         if p.get("email"):
                             if st.button("📧 Envoyer l'appel par email (PDF)", key=f"mail_notice_{p['id']}", use_container_width=True):
-                                subj = f"Avis d'échéance - Loyer {month_names[selected_month-1]} {selected_year} - {sci_info.get('name', 'SCI')}"
+                                subj = f"Avis d'échéance - Loyer {get_month_name(selected_month)} {selected_year} - {sci_info.get('name', 'SCI')}"
                                 ok, msg = send_email(p["email"], subj, html_notice, pdf_notice_filename, pdf_notice)
                                 if ok:
                                     st.success(msg)
@@ -298,7 +299,7 @@ def render_rents():
                     with q_col3:
                         if p.get("email"):
                             if st.button(f"📧 Envoyer par email (PDF)", key=f"mail_quit_{p['id']}", use_container_width=True):
-                                subj = f"Quittance de loyer - {month_names[selected_month-1]} {selected_year} - {sci_info.get('name', 'SCI')}"
+                                subj = f"Quittance de loyer - {get_month_name(selected_month)} {selected_year} - {sci_info.get('name', 'SCI')}"
                                 ok, msg = send_email(p["email"], subj, html_content, pdf_filename, pdf_bytes)
                                 if ok:
                                     st.success(msg)
@@ -317,11 +318,11 @@ def render_rents():
         with st.expander("🗑️ Supprimer des loyers / échéances en masse"):
             col_d1, col_d2 = st.columns(2)
             with col_d1:
-                st.markdown(f"##### Supprimer toutes les échéances de {month_names[selected_month-1]} {selected_year}")
+                st.markdown(f"##### Supprimer toutes les échéances de {get_month_name(selected_month)} {selected_year}")
                 st.caption(f"Supprime l'ensemble des {len(payments)} échéances générées pour ce mois.")
                 if st.button(f"🚨 Supprimer les {len(payments)} échéances du mois", type="secondary", key="del_all_month_rents_btn"):
                     execute_write("DELETE FROM rent_payments WHERE period_month = ? AND period_year = ?;", [selected_month, selected_year])
-                    st.success(f"Échéances de {month_names[selected_month-1]} {selected_year} supprimées.")
+                    st.success(f"Échéances de {get_month_name(selected_month)} {selected_year} supprimées.")
                     st.rerun()
 
             with col_d2:
@@ -336,7 +337,7 @@ def render_rents():
                 if not tenants_with_rents:
                     st.info("Aucun locataire avec historique de loyer.")
                 else:
-                    t_rent_dict = {t["id"]: f"👤 {t['first_name']} {t['last_name']} ({t['count_r']} échéance(s) — {t['sum_paid'] or 0:.2f} € encaissés)" for t in tenants_with_rents}
+                    t_rent_dict = {t["id"]: f"👤 {t['first_name']} {t['last_name']} ({t['count_r']} échéance(s) — {format_currency(t['sum_paid'])} encaissés)" for t in tenants_with_rents}
                     sel_t_del = st.selectbox("Sélectionnez le locataire concerné :", options=list(t_rent_dict.keys()), format_func=lambda x: t_rent_dict[x], key="sb_del_t_rents")
                     t_to_del_obj = next((t for t in tenants_with_rents if t["id"] == sel_t_del), None)
                     if t_to_del_obj:

@@ -14,6 +14,7 @@ from utils.tax_calculator import (
     compute_depreciation_schedule,
     get_cerfa_codes
 )
+from utils.formatters import format_currency
 
 def render_tax_report():
     st.markdown("## 📑 Liasse Fiscale & Déclaration IS (Cerfa 2065 / 2033)")
@@ -47,29 +48,29 @@ def render_tax_report():
     k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric(
         "Chiffre d'Affaires",
-        f"{inc_stmt['gross_rental_income']:,.2f} €".replace(",", " "),
+        format_currency(inc_stmt['gross_rental_income']),
         help="Loyers nets encaissés hors charges de l'exercice"
     )
     k2.metric(
         "Résultat Net Comptable",
-        f"{inc_stmt['net_accounting_result']:,.2f} €".replace(",", " "),
+        format_currency(inc_stmt['net_accounting_result']),
         delta="Bénéfice net" if inc_stmt['net_accounting_result'] >= 0 else "Déficit net",
         delta_color="normal" if inc_stmt['net_accounting_result'] >= 0 else "inverse",
         help="Résultat après impôt sur les sociétés (IS)"
     )
     k3.metric(
         "Total Bilan Net",
-        f"{bal_sheet['total_actif_net']:,.2f} €".replace(",", " "),
+        format_currency(bal_sheet['total_actif_net']),
         help="Total Actif Net = Total Passif au 31 décembre"
     )
     k4.metric(
         "Capitaux Propres",
-        f"{bal_sheet['total_equity']:,.2f} €".replace(",", " "),
+        format_currency(bal_sheet['total_equity']),
         help="Capital social + Report à nouveau + Résultat de l'exercice"
     )
     k5.metric(
         "Dettes Totales",
-        f"{bal_sheet['total_debts']:,.2f} €".replace(",", " "),
+        format_currency(bal_sheet['total_debts']),
         help="Emprunts bancaires (CRD) + Comptes courants associés + Dépôts + IS dû"
     )
 
@@ -116,7 +117,7 @@ def render_tax_report():
         
         # Affichage avec style visuel
         st.dataframe(
-            df_cr.style.format({"Montant (€)": lambda v: f"{v:,.2f} €".replace(",", " ")}),
+            df_cr.style.format({"Montant (€)": format_currency}),
             use_container_width=True,
             hide_index=True
         )
@@ -138,7 +139,7 @@ def render_tax_report():
                 x=categories_chart,
                 y=values_chart,
                 marker_color=colors,
-                text=[f"{v:+,.0f} €".replace(",", " ") for v in values_chart],
+                text=[format_currency(v, include_sign=True, decimals=0) for v in values_chart],
                 textposition="auto"
             ))
             fig_cr.update_layout(
@@ -203,9 +204,9 @@ def render_tax_report():
             df_actif = pd.DataFrame(actif_data)
             st.dataframe(
                 df_actif.style.format({
-                    "Brut (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "Amort. (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "Net (€)": lambda v: f"{v:,.2f} €".replace(",", " ")
+                    "Brut (€)": format_currency,
+                    "Amort. (€)": format_currency,
+                    "Net (€)": format_currency
                 }),
                 use_container_width=True,
                 hide_index=True
@@ -232,7 +233,7 @@ def render_tax_report():
             df_passif = pd.DataFrame(passif_data)
             st.dataframe(
                 df_passif.style.format({
-                    "Montant (€)": lambda v: f"{v:,.2f} €".replace(",", " ")
+                    "Montant (€)": format_currency
                 }),
                 use_container_width=True,
                 hide_index=True
@@ -249,7 +250,7 @@ def render_tax_report():
         r2.metric("Taux d'Endettement Bancaire", f"{endettement:.1f} %", help="Emprunts Bancaires / Total Bilan")
         r3.metric(
             "Fonds de Roulement Net (FRNG)",
-            f"{fonds_roulement:,.2f} €".replace(",", " "),
+            format_currency(fonds_roulement),
             delta="Ressources durables suffisantes" if fonds_roulement >= 0 else "Besoin de trésorerie",
             delta_color="normal" if fonds_roulement >= 0 else "inverse"
         )
@@ -299,14 +300,14 @@ def render_tax_report():
             df_sched = pd.DataFrame(disp_amort)
             st.dataframe(
                 df_sched.style.format({
-                    "Prix total (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "Part Terrain (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "Bâti amortissable (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "Annuité Bâti (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "Amort. Antérieurs (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "Dotation N (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "Amort. Cumulés 31/12 (€)": lambda v: f"{v:,.2f} €".replace(",", " "),
-                    "VNC Clôture (€)": lambda v: f"{v:,.2f} €".replace(",", " ")
+                    "Prix total (€)": format_currency,
+                    "Part Terrain (€)": format_currency,
+                    "Bâti amortissable (€)": format_currency,
+                    "Annuité Bâti (€)": format_currency,
+                    "Amort. Antérieurs (€)": format_currency,
+                    "Dotation N (€)": format_currency,
+                    "Amort. Cumulés 31/12 (€)": format_currency,
+                    "VNC Clôture (€)": format_currency
                 }),
                 use_container_width=True,
                 hide_index=True
@@ -345,7 +346,7 @@ def render_tax_report():
             filtered_df = df_cerfa
 
         st.dataframe(
-            filtered_df.style.format({"Montant (€)": lambda v: f"{v:,.2f} €".replace(",", " ")}),
+            filtered_df.style.format({"Montant (€)": format_currency}),
             use_container_width=True,
             hide_index=True
         )

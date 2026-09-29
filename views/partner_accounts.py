@@ -6,6 +6,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from database import query_rows, query_df, execute_write
+from utils.formatters import format_currency
 
 def get_all_partners():
     """Retourne la liste triée et dédoublonnée de tous les associés enregistrés."""
@@ -64,7 +65,7 @@ def render_partner_accounts():
 
             st.metric(
                 label="Dette totale de la SCI envers les associés (Total CCA)",
-                value=f"{total_cca_balance:,.2f} €".replace(",", " "),
+                value=format_currency(total_cca_balance),
                 help="Montant total de trésorerie que la SCI peut reverser aux associés sans aucun impôt (reprise d'apport personnel)."
             )
 
@@ -77,11 +78,11 @@ def render_partner_accounts():
                     c1.markdown(f"#### 👤 {row['Associé']}")
                     if row["Nb Mouvements"] == 0:
                         c1.caption("Aucun mouvement financier enregistré")
-                    c2.metric("Apports cumulés", f"{row['Total Apports (€)']:,.2f} €".replace(",", " "))
-                    c3.metric("Remboursements perçus", f"{row['Total Remboursé (€)']:,.2f} €".replace(",", " "))
+                    c2.metric("Apports cumulés", format_currency(row["Total Apports (€)"]))
+                    c3.metric("Remboursements perçus", format_currency(row["Total Remboursé (€)"]))
                     c4.metric(
                         "Solde disponible",
-                        f"{row['Solde Récupérable (€)']:,.2f} €".replace(",", " "),
+                        format_currency(row["Solde Récupérable (€)"]),
                         delta="À récupérer net d'impôt" if row['Solde Récupérable (€)'] > 0 else None,
                         delta_color="normal"
                     )
@@ -207,7 +208,7 @@ def render_partner_accounts():
                     "Email": r.get("email") or "—",
                     "Téléphone": r.get("phone") or "—",
                     "Parts": r.get("shares", 0),
-                    "Solde CCA (€)": f"{(ap - rem):,.2f} €".replace(",", " "),
+                    "Solde CCA (€)": format_currency(ap - rem),
                     "Nb Opérations": len(ops)
                 })
 

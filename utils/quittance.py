@@ -13,11 +13,9 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from database import query_one, execute_write
 from utils import storage
+from utils.formatters import MONTH_NAMES_FR, get_month_name
 
-MONTH_NAMES = [
-    "", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
-]
+MONTH_NAMES = [""] + MONTH_NAMES_FR
 
 def generate_quittance_html(
     sci_info: Dict[str, Any],

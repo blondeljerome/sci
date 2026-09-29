@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import date
 from database import query_rows, query_one, execute_write
 from utils.loan import calculate_monthly_payment, generate_amortization_schedule, get_annual_loan_breakdown
+from utils.formatters import format_currency
 
 def render_loans():
     st.markdown("## 🏦 Emprunts Bancaires & Crédits Immobiliers")
@@ -27,7 +28,6 @@ def render_loans():
             st.info("Aucun emprunt enregistré pour la SCI. Utilisez l'onglet **'➕ Ajouter un Emprunt'** pour saisir votre premier crédit immobilier.")
         else:
             current_year = date.today().year
-
             total_borrowed = sum(l["amount"] for l in loans)
             total_monthly_installments = 0.0
             total_interests_this_year = 0.0
@@ -42,12 +42,12 @@ def render_loans():
 
             # Cartes de synthèse globale des emprunts
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Capital Total Emprunté", f"{total_borrowed:,.2f} €".replace(",", " "))
-            c2.metric("Capital Restant Dû (estimé)", f"{total_remaining_balance:,.2f} €".replace(",", " "), help="Dette bancaire restante au passif du bilan")
-            c3.metric("Mensualités Totales", f"{total_monthly_installments:,.2f} € / mois".replace(",", " "), help="Assurance comprise")
+            c1.metric("Capital Total Emprunté", format_currency(total_borrowed))
+            c2.metric("Capital Restant Dû (estimé)", format_currency(total_remaining_balance), help="Dette bancaire restante au passif du bilan")
+            c3.metric("Mensualités Totales", f"{format_currency(total_monthly_installments)} / mois", help="Assurance comprise")
             c4.metric(
                 f"Intérêts Déductibles IS ({current_year})",
-                f"{total_interests_this_year:,.2f} €".replace(",", " "),
+                format_currency(total_interests_this_year),
                 help="Charges financières qui viennent réduire l'impôt sur les sociétés cette année"
             )
 
@@ -59,19 +59,19 @@ def render_loans():
                 tot_m = m_pay + ins
                 dur_years = loan["duration_months"] // 12
 
-                with st.expander(f"🏦 {loan['bank_name']} — {loan.get('loan_reference') or 'Prêt immobilier'} ({tot_m:.2f} €/mois sur {dur_years} ans)", expanded=True):
+                with st.expander(f"🏦 {loan['bank_name']} — {loan.get('loan_reference') or 'Prêt immobilier'} ({format_currency(tot_m)}/mois sur {dur_years} ans)", expanded=True):
                     lc1, lc2, lc3 = st.columns(3)
                     with lc1:
                         st.markdown(f"**Bien financé :** {loan.get('property_name') or 'Financement global SCI'}")
-                        st.markdown(f"**Montant emprunté :** {loan['amount']:,.2f} €".replace(",", " "))
+                        st.markdown(f"**Montant emprunté :** {format_currency(loan['amount'])}")
                         st.markdown(f"**Taux nominal :** {loan['annual_interest_rate']:.2f} %")
                     with lc2:
                         st.markdown(f"**Durée :** {loan['duration_months']} mois ({dur_years} ans)")
                         st.markdown(f"**Date 1ère échéance :** {loan['start_date']}")
-                        st.markdown(f"**Assurance mensuelle :** {ins:.2f} €/mois")
+                        st.markdown(f"**Assurance mensuelle :** {format_currency(ins)}/mois")
                     with lc3:
-                        st.markdown(f"**Mensualité hors assurance :** {m_pay:.2f} €")
-                        st.markdown(f"**Mensualité totale prélevée :** **{tot_m:.2f} € CC**")
+                        st.markdown(f"**Mensualité hors assurance :** {format_currency(m_pay)}")
+                        st.markdown(f"**Mensualité totale prélevée :** **{format_currency(tot_m)} CC**")
                         if loan.get("notes"):
                             st.caption(f"📝 {loan.get('notes')}")
 

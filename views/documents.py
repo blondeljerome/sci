@@ -16,6 +16,7 @@ import pandas as pd
 from datetime import datetime
 from database import query_rows, query_one, execute_write
 from utils import storage
+from utils.formatters import format_file_size
 
 CATEGORIES_GED = [
     "Bail & État des lieux",
@@ -30,12 +31,6 @@ CATEGORIES_GED = [
     "Appel de loyer & Avis d'échéance",
     "Autre pièce justificative"
 ]
-
-def format_file_size(size_bytes: int) -> str:
-    size_kb = (size_bytes or 0) / 1024.0
-    if size_kb < 1024:
-        return f"{size_kb:.1f} Ko"
-    return f"{size_kb / 1024.0:.2f} Mo"
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def fetch_cloud_doc_bytes(public_id: str) -> Optional[bytes]:

@@ -10,6 +10,7 @@ import pandas as pd
 from typing import Any, Optional, Tuple, List, Dict
 from datetime import datetime, date
 from database import query_rows, query_one, execute_write
+from utils.formatters import format_currency, parse_date, format_date_fr
 
 def get_irl_indices_data() -> Tuple[List[str], Dict[str, float]]:
     """
@@ -26,14 +27,6 @@ def get_irl_indices_data() -> Tuple[List[str], Dict[str, float]]:
     quarters = [r["quarter"] for r in rows]
     val_map = {r["quarter"]: float(r["value"]) for r in rows}
     return quarters, val_map
-
-def parse_date(date_str: Any) -> Optional[date]:
-    if not date_str:
-        return None
-    try:
-        return datetime.strptime(str(date_str)[:10], "%Y-%m-%d").date()
-    except Exception:
-        return None
 
 def sync_property_status(property_id: Optional[int]):
     """
@@ -111,7 +104,7 @@ def render_tenants():
                 charges = float(t.get("charges_provision", 0.0) or 0.0)
                 total = rent + charges
                 
-                with st.expander(f"👤 {t.get('first_name')} {t.get('last_name', '').upper()} — {t.get('property_name', 'Sans bien')} ({total:.2f} €/mois CC)", expanded=True):
+                with st.expander(f"👤 {t.get('first_name')} {t.get('last_name', '').upper()} — {t.get('property_name', 'Sans bien')} ({format_currency(total)}/mois CC)", expanded=True):
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         st.markdown(f"**Bien occupé :** {t.get('property_name') or 'Non assigné'}")
@@ -121,10 +114,10 @@ def render_tenants():
                         if t.get("lease_end"):
                             st.markdown(f"**Fin prévue :** `{t.get('lease_end')}`")
                     with c2:
-                        st.markdown(f"**Loyer HC :** `{rent:,.2f} €`")
-                        st.markdown(f"**Provision charges :** `{charges:,.2f} €`")
-                        st.markdown(f"**Total mensuel dû :** **`{total:,.2f} € CC`**")
-                        st.markdown(f"**Dépôt de garantie :** `{float(t.get('deposit_amount', 0.0) or 0.0):,.2f} €`")
+                        st.markdown(f"**Loyer HC :** `{format_currency(rent)}`")
+                        st.markdown(f"**Provision charges :** `{format_currency(charges)}`")
+                        st.markdown(f"**Total mensuel dû :** **`{format_currency(total)} CC`**")
+                        st.markdown(f"**Dépôt de garantie :** `{format_currency(t.get('deposit_amount', 0.0))}`")
                     with c3:
                         st.markdown(f"**Email :** {t.get('email') or 'Non renseigné'}")
                         st.markdown(f"**Téléphone :** {t.get('phone') or 'Non renseigné'}")
