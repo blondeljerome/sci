@@ -2,23 +2,28 @@
 Vue Comptes Courants d'Associés (CCA) - Spécifique SCI à l'IS.
 Permet de suivre les associés de la SCI, les apports personnels et les remboursements en franchise d'impôt.
 """
+import logging
 import streamlit as st
 import pandas as pd
 from datetime import date
-from database import query_rows, query_df, execute_write
+from database import query_rows, query_df, execute_write, execute_batch
 from utils.formatters import format_currency
+
+logger = logging.getLogger("sci.views.partner_accounts")
 
 def get_all_partners():
     """Retourne la liste triée et dédoublonnée de tous les associés enregistrés."""
     try:
         rows = query_rows("SELECT name FROM partners ORDER BY name ASC;")
         db_partners = [r["name"].strip() for r in rows if r.get("name")]
-    except Exception:
+    except Exception as err:
+        logger.warning("Impossible de charger les partenaires depuis partners: %s", err)
         db_partners = []
     try:
         cca_rows = query_rows("SELECT DISTINCT partner_name FROM partner_accounts ORDER BY partner_name ASC;")
         cca_partners = [r["partner_name"].strip() for r in cca_rows if r.get("partner_name")]
-    except Exception:
+    except Exception as err:
+        logger.warning("Impossible de charger les partenaires depuis partner_accounts: %s", err)
         cca_partners = []
     return sorted(list(set(db_partners + cca_partners)))
 
@@ -225,8 +230,10 @@ def render_partner_accounts():
                     if has_ops:
                         st.warning("⚠️ Cet associé possède des opérations de compte courant enregistrées. Sa suppression supprimera également son historique CCA.")
                     if st.button(f"Confirmer la suppression de {p_obj['name']}", type="secondary", key="btn_confirm_del_p"):
-                        execute_write("DELETE FROM partner_accounts WHERE partner_name = ?;", [p_obj["name"]])
-                        execute_write("DELETE FROM partners WHERE id = ?;", [sel_del_p])
+                        execute_batch([
+                            ("DELETE FROM partner_accounts WHERE partner_name = ?;", [p_obj["name"]]),
+                            ("DELETE FROM partners WHERE id = ?;", [sel_del_p])
+                        ])
                         st.success(f"Associé {p_obj['name']} supprimé.")
                         st.rerun()
 

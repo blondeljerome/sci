@@ -3,11 +3,14 @@ Module de stockage centralisé pour la GED (Gestion Électronique des Documents)
 Utilise Cloudinary comme backend de stockage cloud persistant.
 """
 from __future__ import annotations
+import logging
 from typing import Tuple, Optional
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 from config import configure_cloudinary
+
+logger = logging.getLogger("sci.storage")
 
 # Dossier Cloudinary où seront rangés tous les documents GED
 CLOUDINARY_FOLDER = "sci-ged"
@@ -81,10 +84,12 @@ def delete_file(public_id: str) -> bool:
         try:
             res = cloudinary.uploader.destroy(public_id, resource_type=rt)
             if res.get("result") == "ok":
+                logger.info("Fichier Cloudinary supprimé avec succès: %s (type: %s)", public_id, rt)
                 return True
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug("Tentative suppression Cloudinary (%s) échouée: %s", rt, err)
 
+    logger.warning("Échec de la suppression Cloudinary pour public_id=%s", public_id)
     return False
 
 

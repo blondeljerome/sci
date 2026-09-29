@@ -1,8 +1,16 @@
 """
 Point d'entrée principal de l'application Streamlit de Gestion Immobilière SCI à l'IS.
 """
+import logging
 import streamlit as st
 from database import init_db, query_one, get_connection_info
+
+logger = logging.getLogger("sci.app")
+if not logger.handlers:
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [sci.app]: %(message)s"))
+    logger.addHandler(h)
+    logger.setLevel(logging.INFO)
 from views.dashboard import render_dashboard
 from views.properties import render_properties
 from views.tenants import render_tenants
@@ -92,14 +100,15 @@ if "db_initialized" not in st.session_state:
         init_db()
         st.session_state["db_initialized"] = True
     except Exception as e:
+        logger.error("Erreur critique initialisation DB : %s", e)
         st.error(f"Erreur initialisation DB : {e}")
 
 # Récupération des informations de la SCI
 sci_info = {}
 try:
     sci_info = query_one("SELECT name, city, tax_regime FROM sci_info WHERE id = 1;") or {}
-except Exception:
-    pass
+except Exception as err:
+    logger.warning("Impossible de récupérer les informations de la SCI: %s", err)
 
 sci_name = sci_info.get("name", "Ma SCI Immobilière")
 tax_regime = sci_info.get("tax_regime", "IS")

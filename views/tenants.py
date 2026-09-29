@@ -9,7 +9,7 @@ import streamlit as st
 import pandas as pd
 from typing import Any, Optional, Tuple, List, Dict
 from datetime import datetime, date
-from database import query_rows, query_one, execute_write
+from database import query_rows, query_one, execute_write, execute_batch
 from utils.formatters import format_currency, parse_date, format_date_fr
 
 def get_irl_indices_data() -> Tuple[List[str], Dict[str, float]]:
@@ -44,7 +44,8 @@ def sync_property_status(property_id: Optional[int]):
 
 def delete_tenant_and_rents(tenant_id: int, delete_rents: bool = True) -> tuple[bool, int]:
     """
-    Supprime un locataire et optionnellement l'ensemble de ses échéances et loyers encaissés.
+    Supprime un locataire et optionnellement l'ensemble de ses échéances et loyers encaissés
+    dans une TRANSACTION ATOMIQUE UNIQUE (Rollback automatique si échec).
     Nettoie également les liaisons dans property_expenses et documents.
     Met à jour le statut d'occupation du bien associé.
     """
@@ -54,18 +55,22 @@ def delete_tenant_and_rents(tenant_id: int, delete_rents: bool = True) -> tuple[
 
     prop_id = t_data.get("property_id")
     rents_count = 0
+    stmts = []
 
     if delete_rents:
         r_rows = query_rows("SELECT COUNT(*) as c FROM rent_payments WHERE tenant_id = ?;", [tenant_id])
         rents_count = r_rows[0]["c"] if r_rows else 0
-        execute_write("DELETE FROM rent_payments WHERE tenant_id = ?;", [tenant_id])
+        stmts.append(("DELETE FROM rent_payments WHERE tenant_id = ?;", [tenant_id]))
 
     # Détacher sans supprimer les charges et documents
-    execute_write("UPDATE property_expenses SET tenant_id = NULL WHERE tenant_id = ?;", [tenant_id])
-    execute_write("UPDATE documents SET tenant_id = NULL WHERE tenant_id = ?;", [tenant_id])
+    stmts.append(("UPDATE property_expenses SET tenant_id = NULL WHERE tenant_id = ?;", [tenant_id]))
+    stmts.append(("UPDATE documents SET tenant_id = NULL WHERE tenant_id = ?;", [tenant_id]))
 
     # Supprimer le locataire
-    execute_write("DELETE FROM tenants WHERE id = ?;", [tenant_id])
+    stmts.append(("DELETE FROM tenants WHERE id = ?;", [tenant_id]))
+
+    # Exécution atomique
+    execute_batch(stmts)
 
     # Synchroniser le bien (devient vacant si 0 locataires actifs)
     if prop_id:
