@@ -12,7 +12,7 @@ Les fichiers sont stockés sur Cloudinary (stockage cloud sécurisé et
 persistant). Liaison intelligente aux Biens Immobiliers et Locataires.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import streamlit as st
 
@@ -26,7 +26,7 @@ CATEGORIES_GED = [cat.value for cat in DocumentCategory]
 
 
 @st.cache_data(show_spinner=False, ttl=1800)
-def fetch_cloud_doc_bytes(public_id: str) -> Optional[bytes]:
+def fetch_cloud_doc_bytes(public_id: str) -> bytes | None:
     """Télécharge le document original en temps réel depuis Cloudinary.
 
     Args:
@@ -38,7 +38,7 @@ def fetch_cloud_doc_bytes(public_id: str) -> Optional[bytes]:
     return storage.download_file_bytes(public_id)
 
 
-def render_doc_button(doc: Dict[str, Any], key: str) -> None:
+def render_doc_button(doc: dict[str, Any], key: str) -> None:
     """Affiche les actions pour un document de la GED.
 
     - Voir : Ouvre l'aperçu hébergé sur Cloudinary

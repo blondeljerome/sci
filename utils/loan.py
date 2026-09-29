@@ -5,7 +5,7 @@ déductibles et assurance.
 """
 
 from datetime import date, datetime
-from typing import Any, Dict, List
+from typing import Any
 
 
 def calculate_monthly_payment(
@@ -35,8 +35,8 @@ def calculate_monthly_payment(
 
 
 def generate_amortization_schedule(
-    loan: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    loan: dict[str, Any],
+) -> list[dict[str, Any]]:
     """Génère l'échéancier complet mois par mois d'un crédit immobilier.
 
     Args:
@@ -109,8 +109,8 @@ def generate_amortization_schedule(
 
 
 def get_annual_loan_breakdown(
-    loan: Dict[str, Any], target_year: int
-) -> Dict[str, float]:
+    loan: dict[str, Any], target_year: int
+) -> dict[str, float]:
     """Calcule pour une année le capital amorti, les intérêts et l'assurance.
 
     Args:

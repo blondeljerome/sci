@@ -10,7 +10,7 @@ Prend en charge :
 
 import calendar
 from datetime import date, datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from config import (
     IS_NORMAL_RATE,
@@ -36,7 +36,7 @@ def is_leap_year(year: int) -> bool:
     return calendar.isleap(year)
 
 
-def compute_depreciation_schedule(tax_year: int) -> List[Dict[str, Any]]:
+def compute_depreciation_schedule(tax_year: int) -> list[dict[str, Any]]:
     """Calcule le tableau d'amortissement de chaque bien immobilier.
 
     Prend en compte :
@@ -168,7 +168,7 @@ def compute_depreciation_schedule(tax_year: int) -> List[Dict[str, Any]]:
     return schedule
 
 
-def compute_income_statement(tax_year: int) -> Dict[str, Any]:
+def compute_income_statement(tax_year: int) -> dict[str, Any]:
     """Calcule le Compte de Résultat de l'exercice fiscal (Cerfa 2033-B).
 
     Args:
@@ -379,7 +379,7 @@ def compute_income_statement(tax_year: int) -> Dict[str, Any]:
     }
 
 
-def compute_balance_sheet(tax_year: int) -> Dict[str, Any]:
+def compute_balance_sheet(tax_year: int) -> dict[str, Any]:
     """Calcule le Bilan Comptable au 31 décembre de l'exercice (Cerfa 2033-A).
 
     Comprend l'Actif (Brut, Amortissements, Net), le Passif (Capitaux Propres
@@ -587,8 +587,8 @@ def compute_balance_sheet(tax_year: int) -> Dict[str, Any]:
 
 
 def get_cerfa_codes(
-    inc_stmt: Dict[str, Any], bal_sheet: Dict[str, Any]
-) -> List[Dict[str, Any]]:
+    inc_stmt: dict[str, Any], bal_sheet: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Retourne la correspondance avec les cases officielles DGFiP.
 
     Prend en charge :

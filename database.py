@@ -5,9 +5,9 @@ Fournit le support des transactions atomiques et de la journalisation.
 """
 
 import logging
-import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import Any
 
 import libsql_client
 import pandas as pd
@@ -36,7 +36,7 @@ def get_client() -> libsql_client.Client:
         return libsql_client.create_client_sync(url)
 
 
-def get_connection_info() -> Dict[str, Any]:
+def get_connection_info() -> dict[str, Any]:
     """
     Retourne des informations sur la connexion courante.
     """
@@ -63,8 +63,8 @@ def init_db() -> None:
     logger.info("Initialisation de la base de données...")
     client = get_client()
     try:
-        schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
-        with open(schema_path, "r", encoding="utf-8") as f:
+        schema_path = Path(__file__).parent / "schema.sql"
+        with schema_path.open("r", encoding="utf-8") as f:
             content = f.read()
 
         cleaned_content = re.sub(r"--.*$", "", content, flags=re.MULTILINE)
@@ -228,7 +228,7 @@ def init_db() -> None:
         )
 
 
-def query_df(sql: str, params: Optional[List[Any]] = None) -> pd.DataFrame:
+def query_df(sql: str, params: list[Any] | None = None) -> pd.DataFrame:
     """
     Exécute une requête SELECT et retourne un DataFrame Pandas.
     """
@@ -243,8 +243,8 @@ def query_df(sql: str, params: Optional[List[Any]] = None) -> pd.DataFrame:
 
 
 def query_rows(
-    sql: str, params: Optional[List[Any]] = None
-) -> List[Dict[str, Any]]:
+    sql: str, params: list[Any] | None = None
+) -> list[dict[str, Any]]:
     """
     Exécute une requête SELECT et retourne une liste de dictionnaires.
     """
@@ -261,8 +261,8 @@ def query_rows(
 
 
 def query_one(
-    sql: str, params: Optional[List[Any]] = None
-) -> Optional[Dict[str, Any]]:
+    sql: str, params: list[Any] | None = None
+) -> dict[str, Any] | None:
     """Exécute une requête SELECT et retourne la première ligne.
 
     Args:
@@ -276,7 +276,7 @@ def query_one(
     return rows[0] if rows else None
 
 
-def execute_write(sql: str, params: Optional[List[Any]] = None) -> int:
+def execute_write(sql: str, params: list[Any] | None = None) -> int:
     """Exécute une requête d'écriture unique (INSERT, UPDATE, DELETE).
 
     Args:
@@ -297,8 +297,8 @@ def execute_write(sql: str, params: Optional[List[Any]] = None) -> int:
 
 
 def execute_batch(
-    statements: List[Union[str, Tuple[str, List[Any]]]],
-) -> List[Any]:
+    statements: list[str | tuple[str, list[Any]]],
+) -> list[Any]:
     """Exécute une liste d'instructions SQL dans une transaction atomique.
 
     Si l'une des instructions échoue, toutes les modifications sont

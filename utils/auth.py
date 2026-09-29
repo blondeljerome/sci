@@ -7,7 +7,7 @@ cryptographique robuste.
 import hashlib
 import hmac
 import secrets
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from database import execute_write, query_one, query_rows
 
@@ -68,7 +68,7 @@ def verify_password(password: str, hashed: str) -> bool:
     return hmac.compare_digest(computed_hash, expected_hash)
 
 
-def authenticate(username: str, password: str) -> Optional[Dict[str, Any]]:
+def authenticate(username: str, password: str) -> dict[str, Any] | None:
     """Authentifie un utilisateur par son identifiant et mot de passe.
 
     Met à jour la date de dernière connexion si succès.
@@ -116,7 +116,7 @@ def authenticate(username: str, password: str) -> Optional[Dict[str, Any]]:
 
 def change_password(
     user_id: int, current_password: str, new_password: str
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """Modifie le mot de passe d'un utilisateur après vérification de l'ancien.
 
     Args:
@@ -155,7 +155,7 @@ def change_password(
 
 def update_user_profile(
     user_id: int, full_name: str, email: str
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """Met à jour les informations de profil (nom complet, email).
 
     Args:
@@ -179,7 +179,7 @@ def update_user_profile(
         return False, f"Erreur lors de la mise à jour : {e}"
 
 
-def get_all_users() -> List[Dict[str, Any]]:
+def get_all_users() -> list[dict[str, Any]]:
     """Retourne la liste des utilisateurs enregistrés (sans mot de passe).
 
     Returns:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from database import execute_write, query_one, query_rows
 from models.enums import RentStatus
@@ -18,7 +18,7 @@ from utils.quittance import save_quittance_to_ged
 logger = logging.getLogger("sci.services.rent")
 
 
-def generate_monthly_term(month: int, year: int) -> Tuple[int, int]:
+def generate_monthly_term(month: int, year: int) -> tuple[int, int]:
     """Génère l'ensemble des échéances de loyers du terme pour les locataires.
 
     Produit automatiquement les avis d'échéance PDF archivés dans la GED.
@@ -102,8 +102,8 @@ def generate_monthly_term(month: int, year: int) -> Tuple[int, int]:
 
 
 def record_full_payment(
-    payment_id: int, payment_date: Optional[str] = None
-) -> Tuple[bool, str]:
+    payment_id: int, payment_date: str | None = None
+) -> tuple[bool, str]:
     """Enregistre l'encaissement intégral d'un loyer.
 
     Met à jour le statut en 'paye', puis génère et archive automatiquement la
@@ -175,7 +175,7 @@ def record_full_payment(
     return True, msg_ged
 
 
-def get_monthly_payments(month: int, year: int) -> List[Dict[str, Any]]:
+def get_monthly_payments(month: int, year: int) -> list[dict[str, Any]]:
     """Récupère les échéances de paiement d'un mois avec les liens GED.
 
     Args:

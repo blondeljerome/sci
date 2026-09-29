@@ -7,7 +7,7 @@ Conforme au Google Python Style Guide.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from config import (
     DEFAULT_BUILDING_AMORT_YEARS,
@@ -21,8 +21,8 @@ logger = logging.getLogger("sci.services.property")
 
 
 def calculate_property_depreciation(
-    prop: Dict[str, Any],
-) -> Dict[str, float]:
+    prop: dict[str, Any],
+) -> dict[str, float]:
     """Calcule les bases et annuités d'amortissement fiscal pour un bien (IS).
 
     - Terrain : quote-part non amortissable (généralement 15-20%)
@@ -87,7 +87,7 @@ def calculate_property_depreciation(
     }
 
 
-def sync_property_status(property_id: Optional[int]) -> str:
+def sync_property_status(property_id: int | None) -> str:
     """Met à jour le statut d'un bien selon ses locataires actifs.
 
     Args:
@@ -124,7 +124,7 @@ def sync_property_status(property_id: Optional[int]) -> str:
     return new_status
 
 
-def get_properties_with_tenants() -> List[Dict[str, Any]]:
+def get_properties_with_tenants() -> list[dict[str, Any]]:
     """Retourne l'ensemble des biens avec les informations du locataire actif.
 
     Returns:

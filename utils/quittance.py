@@ -7,7 +7,7 @@ Permet la génération et l'archivage automatique dans la GED.
 import html
 import io
 from datetime import date
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -29,10 +29,10 @@ MONTH_NAMES = [""] + MONTH_NAMES_FR
 
 
 def generate_quittance_html(
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
-    payment: Dict[str, Any],
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
+    payment: dict[str, Any],
 ) -> str:
     """Génère un document HTML élégant pour la prévisualisation dans Streamlit.
 
@@ -305,10 +305,10 @@ def generate_quittance_html(
 
 
 def generate_quittance_pdf(
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
-    payment: Dict[str, Any],
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
+    payment: dict[str, Any],
 ) -> bytes:
     """Génère un document PDF binaire pour la quittance de loyer.
 
@@ -667,11 +667,11 @@ def generate_quittance_pdf(
 
 def save_quittance_to_ged(
     payment_id: int,
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
-    payment: Dict[str, Any],
-) -> Tuple[bool, str, Optional[int]]:
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
+    payment: dict[str, Any],
+) -> tuple[bool, str, int | None]:
     """Génère la quittance de loyer PDF et l'enregistre dans la GED.
 
     Met à jour rent_payments.document_id.

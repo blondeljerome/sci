@@ -7,7 +7,7 @@ Conforme au Google Python Style Guide.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from database import execute_batch, execute_write, query_one, query_rows
 from services.property_service import sync_property_status
@@ -15,7 +15,7 @@ from services.property_service import sync_property_status
 logger = logging.getLogger("sci.services.tenant")
 
 
-def get_irl_indices_data() -> Tuple[List[str], Dict[str, float]]:
+def get_irl_indices_data() -> tuple[list[str], dict[str, float]]:
     """Récupère les trimestres et valeurs officielles de l'IRL en base.
 
     Triés rigoureusement par année et trimestre décroissant.
@@ -44,7 +44,7 @@ def get_irl_indices_data() -> Tuple[List[str], Dict[str, float]]:
 
 def delete_tenant_and_rents(
     tenant_id: int, delete_rents: bool = True
-) -> Tuple[bool, int]:
+) -> tuple[bool, int]:
     """Supprime un locataire et ses échéances de manière atomique.
 
     Détache également les liaisons dans property_expenses et documents,
@@ -138,7 +138,7 @@ def terminate_lease(tenant_id: int, departure_date: str) -> bool:
     return True
 
 
-def get_active_tenants_with_property() -> List[Dict[str, Any]]:
+def get_active_tenants_with_property() -> list[dict[str, Any]]:
     """Retourne la liste des locataires actifs avec les détails de leur bien.
 
     Returns:

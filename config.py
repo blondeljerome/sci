@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional, Tuple
+from pathlib import Path
 
 import streamlit as st
 
@@ -41,14 +41,14 @@ ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = (
 )
 
 
-def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
+def get_turso_credentials() -> tuple[str | None, str | None, bool]:
     """Récupère l'URL et le Token de Turso depuis secrets, env ou fallback.
 
     Returns:
         Un tuple (db_url, auth_token, is_turso).
     """
-    url: Optional[str] = None
-    token: Optional[str] = None
+    url: str | None = None
+    token: str | None = None
 
     # 1. Tentative via st.secrets
     try:
@@ -75,23 +75,24 @@ def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
         return url, token, True
 
     # 3. Fallback local SQLite
-    os.makedirs("data", exist_ok=True)
-    local_db_path = os.path.abspath("data/sci_local.db")
+    data_dir = Path("data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    local_db_path = (data_dir / "sci_local.db").resolve()
     local_url = f"file:{local_db_path}"
     return local_url, None, False
 
 
-def get_cloudinary_credentials() -> Tuple[
-    Optional[str], Optional[str], Optional[str]
+def get_cloudinary_credentials() -> tuple[
+    str | None, str | None, str | None
 ]:
     """Récupère les identifiants Cloudinary depuis st.secrets ou os.environ.
 
     Returns:
         Un tuple (cloud_name, api_key, api_secret).
     """
-    cloud_name: Optional[str] = None
-    api_key: Optional[str] = None
-    api_secret: Optional[str] = None
+    cloud_name: str | None = None
+    api_key: str | None = None
+    api_secret: str | None = None
 
     # 1. Tentative via st.secrets
     try:
@@ -138,7 +139,7 @@ def validate_file_upload(
     file_bytes: bytes,
     max_size: int = MAX_UPLOAD_SIZE_BYTES,
     allowed_exts: tuple[str, ...] = ALLOWED_UPLOAD_EXTENSIONS,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Valide la taille et l'extension d'un document avant téléversement.
 
     Args:
@@ -150,11 +151,11 @@ def validate_file_upload(
     Returns:
         Un tuple (est_valide, message_erreur_optionnel).
     """
-    filename = os.path.basename(filename.strip()) if filename else ""
-    if not filename or not file_bytes:
+    clean_name = Path(filename.strip()).name if filename else ""
+    if not clean_name or not file_bytes:
         return False, "Le fichier est vide ou invalide."
 
-    _, ext = os.path.splitext(filename.lower())
+    ext = Path(clean_name.lower()).suffix
     if ext not in allowed_exts:
         valid_list = ", ".join(allowed_exts)
         return (

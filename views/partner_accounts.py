@@ -6,7 +6,6 @@ et les remboursements en franchise d'impôt.
 
 import logging
 from datetime import date
-from typing import List
 
 import pandas as pd
 import streamlit as st
@@ -18,7 +17,7 @@ from utils.formatters import format_currency
 logger = logging.getLogger("sci.views.partner_accounts")
 
 
-def get_all_partners() -> List[str]:
+def get_all_partners() -> list[str]:
     """Retourne la liste triée et dédoublonnée de tous les associés.
 
     Returns:

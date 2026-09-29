@@ -7,20 +7,20 @@ import smtplib
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
 
 import streamlit as st
 
 from database import query_one
 
 
-def get_smtp_config() -> Dict[str, Any]:
+def get_smtp_config() -> dict[str, Any]:
     """Récupère les paramètres SMTP depuis la base ou st.secrets.
 
     Returns:
         Dictionnaire contenant la configuration SMTP (server, port, user, etc.).
     """
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "server": "",
         "port": 587,
         "username": "",
@@ -68,9 +68,9 @@ def send_email(
     to_email: str,
     subject: str,
     html_body: str,
-    attachment_filename: Optional[str] = None,
-    attachment_content: Optional[Union[str, bytes]] = None,
-) -> Tuple[bool, str]:
+    attachment_filename: str | None = None,
+    attachment_content: str | bytes | None = None,
+) -> tuple[bool, str]:
     """Envoie un email HTML avec pièce jointe optionnelle.
 
     Args:

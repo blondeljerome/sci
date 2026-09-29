@@ -6,12 +6,12 @@ Récupération des indices officiels et calcul de révision légale de loyer.
 import html
 import re
 import urllib.request
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from database import execute_write
 
 
-def fetch_online_irl_indices() -> List[Dict[str, Any]]:
+def fetch_online_irl_indices() -> list[dict[str, Any]]:
     """Récupère automatiquement les indices IRL depuis les sources officielles.
 
     1. Service-Public.fr (indices récents avec dates de parution au JO)
@@ -20,7 +20,7 @@ def fetch_online_irl_indices() -> List[Dict[str, Any]]:
     Returns:
         Liste de dictionnaires ordonnés du plus récent au plus ancien.
     """
-    results_map: Dict[str, Dict[str, Any]] = {}
+    results_map: dict[str, dict[str, Any]] = {}
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -106,7 +106,7 @@ def fetch_online_irl_indices() -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"[IRL Fetch] ANIL notice: {e}")
 
-    def quarter_sort_key(item: Dict[str, Any]) -> Tuple[int, int]:
+    def quarter_sort_key(item: dict[str, Any]) -> tuple[int, int]:
         """Clé de tri chronologique (année, numéro de trimestre)."""
         q = str(item.get("quarter", ""))
         try:
@@ -123,7 +123,7 @@ def fetch_online_irl_indices() -> List[Dict[str, Any]]:
     return sorted_results
 
 
-def sync_irl_indices_to_db() -> Dict[str, Any]:
+def sync_irl_indices_to_db() -> dict[str, Any]:
     """Récupère en direct les derniers indices IRL et les synchronise en base.
 
     Returns:
@@ -175,9 +175,9 @@ def calculate_irl_revision(
 
 
 def generate_irl_letter_html(
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
     old_rent: float,
     new_rent: float,
     old_quarter: str,

@@ -4,7 +4,7 @@ Génère un dump SQL complet et le sauvegarde sur Cloudinary avec rétention.
 """
 
 import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 import cloudinary
 import cloudinary.api
@@ -151,7 +151,7 @@ def generate_sql_dump() -> str:
 
 def create_backup(
     retention_days: int = DEFAULT_RETENTION_DAYS, folder: str = BACKUP_FOLDER
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Génère le dump SQL complet et l'uploade vers Cloudinary.
 
     Applique également la politique de rétention (suppression des backups
@@ -207,7 +207,7 @@ def create_backup(
     }
 
 
-def list_backups(folder: str = BACKUP_FOLDER) -> List[Dict[str, Any]]:
+def list_backups(folder: str = BACKUP_FOLDER) -> list[dict[str, Any]]:
     """Liste toutes les sauvegardes existantes dans Cloudinary.
 
     Retourne la liste triée par date décroissante (plus récente d'abord).

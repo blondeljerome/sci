@@ -9,7 +9,7 @@
 import html
 import io
 from datetime import date
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -37,14 +37,14 @@ def _esc(val: Any) -> str:
 
 # 1. AVIS D'ECHEANCE / APPEL DE LOYER
 def generate_avis_echeance_html(
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
     month: int,
     year: int,
     due_date: str,
-    rent_amount: Optional[float] = None,
-    charges_amount: Optional[float] = None,
+    rent_amount: float | None = None,
+    charges_amount: float | None = None,
 ) -> str:
     """Génère l'Avis d'échéance / Appel de loyer au format HTML.
 
@@ -262,15 +262,15 @@ def generate_avis_echeance_html(
 
 
 def generate_avis_echeance_pdf(
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
     month: int,
     year: int,
     due_date: str,
-    rent_amount: Optional[float] = None,
-    charges_amount: Optional[float] = None,
-    payment_id: Optional[int] = None,
+    rent_amount: float | None = None,
+    charges_amount: float | None = None,
+    payment_id: int | None = None,
 ) -> bytes:
     """Génère un document PDF pour l'Avis d'Échéance / Appel de Loyer.
 
@@ -652,16 +652,16 @@ def generate_avis_echeance_pdf(
 
 
 def save_avis_echeance_to_ged(
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
     month: int,
     year: int,
     due_date: str,
-    rent_amount: Optional[float] = None,
-    charges_amount: Optional[float] = None,
-    payment_id: Optional[int] = None,
-) -> Tuple[bool, str, Optional[int]]:
+    rent_amount: float | None = None,
+    charges_amount: float | None = None,
+    payment_id: int | None = None,
+) -> tuple[bool, str, int | None]:
     """Génère l'Appel de loyer en PDF et l'enregistre dans la GED.
 
     Met à jour rent_payments.notice_document_id si payment_id fourni.
@@ -818,10 +818,10 @@ def save_avis_echeance_to_ged(
 
 # 2. RELANCE AMIABLE D'IMPAYE (J+7)
 def generate_relance_amiable_html(
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
-    payment_record: Dict[str, Any],
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
+    payment_record: dict[str, Any],
 ) -> str:
     """Génère la lettre de relance amiable d'impayé au format HTML.
 
@@ -962,10 +962,10 @@ def generate_relance_amiable_html(
 
 # 3. MISE EN DEMEURE FORMELLE (J+21 - LRAR)
 def generate_mise_en_demeure_html(
-    sci_info: Dict[str, Any],
-    tenant: Dict[str, Any],
-    property_info: Dict[str, Any],
-    payment_record: Dict[str, Any],
+    sci_info: dict[str, Any],
+    tenant: dict[str, Any],
+    property_info: dict[str, Any],
+    payment_record: dict[str, Any],
 ) -> str:
     """Génère la lettre de mise en demeure de payer au format HTML.
 
@@ -1111,7 +1111,7 @@ def generate_mise_en_demeure_html(
 
 # 4. PROCES-VERBAL D'ASSEMBLEE GENERALE ORDINAIRE (PV D'AGO)
 def generate_pv_ago_html(
-    sci_info: Dict[str, Any],
+    sci_info: dict[str, Any],
     fiscal_year: int,
     gross_income: float,
     operating_expenses: float,

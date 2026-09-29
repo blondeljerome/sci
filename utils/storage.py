@@ -6,8 +6,7 @@ Utilise Cloudinary comme backend de stockage cloud persistant.
 from __future__ import annotations
 
 import logging
-import os
-from typing import Optional, Tuple
+from pathlib import Path
 
 import cloudinary
 import cloudinary.api
@@ -38,7 +37,7 @@ def upload_file(
     file_bytes: bytes,
     original_filename: str,
     folder: str = CLOUDINARY_FOLDER,
-) -> Tuple[str, str, int]:
+) -> tuple[str, str, int]:
     """Upload un fichier vers Cloudinary après validation de conformité.
 
     Args:
@@ -53,7 +52,7 @@ def upload_file(
         ValueError: Si le fichier ne respecte pas les critères de format.
         RuntimeError: Si Cloudinary n'est pas configuré.
     """
-    clean_filename = os.path.basename(original_filename.strip())
+    clean_filename = Path(original_filename.strip()).name
     is_valid, err_msg = validate_file_upload(clean_filename, file_bytes)
     if not is_valid:
         raise ValueError(err_msg or "Fichier invalide pour téléversement.")
@@ -115,7 +114,7 @@ def delete_file(public_id: str) -> bool:
     return False
 
 
-def get_file_url(public_id: str, resource_type: str = "raw") -> Optional[str]:
+def get_file_url(public_id: str, resource_type: str = "raw") -> str | None:
     """
     Retourne l'URL publique sécurisée (HTTPS) d'un fichier Cloudinary.
 
@@ -171,7 +170,7 @@ def get_preview_url(public_id: str, original_url: str = "") -> str:
 
 def download_file_bytes(
     public_id: str, resource_type: str = "image"
-) -> Optional[bytes]:
+) -> bytes | None:
     """Télécharge le contenu binaire brut d'un document Cloudinary.
 
     Contourne toute restriction CDN publique via l'API signée.

@@ -199,7 +199,7 @@ def render_tenants() -> None:
                                 key=f"btn_del_quick_{t['id']}",
                                 use_container_width=True,
                             ):
-                                ok, del_count = delete_tenant_and_rents(
+                                _ok, del_count = delete_tenant_and_rents(
                                     t["id"], delete_rents=del_rents_quick
                                 )
                                 extra_msg = (

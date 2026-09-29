@@ -6,12 +6,12 @@ Respecte les principes du Google Python Style Guide et du Clean Code.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, List, Optional, Union
+from typing import Any
 
 # -----------------------------------------------------------------------------
 # Constantes Calendaires
 # -----------------------------------------------------------------------------
-MONTH_NAMES_FR: List[str] = [
+MONTH_NAMES_FR: list[str] = [
     "Janvier",
     "Février",
     "Mars",
@@ -45,7 +45,7 @@ def get_month_name(month: int) -> str:
 # Formatage Monétaire & Nombres
 # -----------------------------------------------------------------------------
 def format_currency(
-    amount: Optional[Union[float, int]],
+    amount: float | int | None,
     symbol: str = "€",
     include_sign: bool = False,
     decimals: int = 2,
@@ -84,7 +84,7 @@ def format_currency(
 
 
 def format_percentage(
-    value: Optional[Union[float, int]], decimals: int = 1
+    value: float | int | None, decimals: int = 1
 ) -> str:
     """Formate un pourcentage lisible.
 
@@ -109,7 +109,7 @@ def format_percentage(
 # -----------------------------------------------------------------------------
 # Formatage & Parsing des Dates
 # -----------------------------------------------------------------------------
-def parse_date(date_val: Any) -> Optional[date]:
+def parse_date(date_val: Any) -> date | None:
     """Parse de manière sécurisée une chaîne ISO, un objet date ou datetime.
 
     Args:
@@ -160,7 +160,7 @@ def format_date_fr(date_val: Any, default: str = "-") -> str:
 # -----------------------------------------------------------------------------
 # Formatage des Tailles de Fichiers (GED)
 # -----------------------------------------------------------------------------
-def format_file_size(size_bytes: Optional[int]) -> str:
+def format_file_size(size_bytes: int | None) -> str:
     """Formate une taille d'octets en Ko ou Mo lisible.
 
     Exemple: 153600 -> "150.0 Ko", 2500000 -> "2.38 Mo"
