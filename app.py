@@ -2,7 +2,7 @@
 Point d'entrée principal de l'application Streamlit de Gestion Immobilière SCI à l'IS.
 """
 import logging
-import streamlit as st
+from config import APP_TITLE, APP_ICON
 from database import init_db, query_one, get_connection_info
 
 logger = logging.getLogger("sci.app")
@@ -26,8 +26,8 @@ from views.settings import render_settings
 
 # Configuration de la page Streamlit
 st.set_page_config(
-    page_title="Gestion Immobilière SCI à l'IS",
-    page_icon="🏢",
+    page_title=APP_TITLE,
+    page_icon=APP_ICON,
     layout="wide",
     initial_sidebar_state="expanded"
 )

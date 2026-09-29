@@ -17,20 +17,10 @@ from datetime import datetime
 from database import query_rows, query_one, execute_write
 from utils import storage
 from utils.formatters import format_file_size
+from config import validate_file_upload, ALLOWED_UPLOAD_EXTENSIONS
+from models.enums import DocumentCategory
 
-CATEGORIES_GED = [
-    "Bail & État des lieux",
-    "Attestation d'assurance habitation",
-    "Diagnostic technique (DPE, plomb, élec...)",
-    "Facture / Devis de travaux",
-    "Taxe foncière / Avis d'imposition",
-    "Appel de fonds de copropriété",
-    "Statuts, Kbis & Documents SCI",
-    "Offre de prêt & Contrat de crédit",
-    "Quittance & Reçu de paiement",
-    "Appel de loyer & Avis d'échéance",
-    "Autre pièce justificative"
-]
+CATEGORIES_GED = [cat.value for cat in DocumentCategory]
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def fetch_cloud_doc_bytes(public_id: str) -> Optional[bytes]:
@@ -497,9 +487,14 @@ def render_documents():
             else:
                 try:
                     final_filename = custom_name.strip() if custom_name.strip() else uploaded_file.name
+                    file_bytes = uploaded_file.getvalue()
+
+                    is_valid, validation_err = validate_file_upload(uploaded_file.name, file_bytes)
+                    if not is_valid:
+                        st.error(f"⚠️ {validation_err}")
+                        return
 
                     with st.spinner("Téléversement sécurisé vers Cloudinary en cours…"):
-                        file_bytes = uploaded_file.getvalue()
                         public_id, secure_url, file_size = storage.upload_file(
                             file_bytes,
                             uploaded_file.name

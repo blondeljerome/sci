@@ -8,7 +8,7 @@ from typing import Tuple, Optional
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-from config import configure_cloudinary
+from config import configure_cloudinary, validate_file_upload
 
 logger = logging.getLogger("sci.storage")
 
@@ -33,17 +33,24 @@ def upload_file(
     original_filename: str,
     folder: str = CLOUDINARY_FOLDER,
 ) -> Tuple[str, str, int]:
-    """
-    Upload un fichier vers Cloudinary.
+    """Upload un fichier vers Cloudinary après validation de conformité.
 
     Args:
         file_bytes: Contenu brut du fichier.
-        original_filename: Nom original du fichier (utilisé pour le public_id et le resource_type).
+        original_filename: Nom original du fichier.
         folder: Dossier Cloudinary de destination.
 
     Returns:
         (public_id, secure_url, file_size_bytes)
+
+    Raises:
+        ValueError: Si le fichier ne respecte pas les critères de format ou de taille.
+        RuntimeError: Si Cloudinary n'est pas configuré.
     """
+    is_valid, err_msg = validate_file_upload(original_filename, file_bytes)
+    if not is_valid:
+        raise ValueError(err_msg or "Fichier invalide pour téléversement.")
+
     _ensure_configured()
 
     # Cloudinary gère nativement PDF, images, etc. via resource_type="auto"

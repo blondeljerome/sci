@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import date
 from database import query_rows, query_df, execute_write, execute_batch
 from utils.formatters import format_currency
+from models.enums import PartnerAccountType
 
 logger = logging.getLogger("sci.views.partner_accounts")
 
@@ -53,8 +54,8 @@ def render_partner_accounts():
             for p in all_partners:
                 p_df = ops_df[ops_df["partner_name"] == p] if not ops_df.empty else pd.DataFrame()
                 if not p_df.empty:
-                    apports = p_df[p_df["type"] == "apport"]["amount"].sum()
-                    remboursements = p_df[p_df["type"] == "remboursement"]["amount"].sum()
+                    apports = p_df[p_df["type"] == PartnerAccountType.APPORT.value]["amount"].sum()
+                    remboursements = p_df[p_df["type"] == PartnerAccountType.REMBOURSEMENT.value]["amount"].sum()
                 else:
                     apports = 0.0
                     remboursements = 0.0
@@ -125,8 +126,8 @@ def render_partner_accounts():
             op_date = st.date_input("Date du mouvement *", value=date.today(), key="cca_op_date").strftime("%Y-%m-%d")
             op_type = st.selectbox(
                 "Nature de l'opération *",
-                ["apport", "remboursement"],
-                format_func=lambda x: "➕ Apport (L'associé avance ou injecte de l'argent dans la SCI)" if x == "apport" else "➖ Remboursement (La SCI rembourse l'associé sur son compte perso)",
+                [PartnerAccountType.APPORT.value, PartnerAccountType.REMBOURSEMENT.value],
+                format_func=lambda x: "➕ Apport (L'associé avance ou injecte de l'argent dans la SCI)" if x == PartnerAccountType.APPORT.value else "➖ Remboursement (La SCI rembourse l'associé sur son compte perso)",
                 key="cca_op_type"
             )
 

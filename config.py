@@ -1,19 +1,50 @@
+"""Module de configuration centralisé pour l'application SCI.
+
+Gère les variables d'environnement, les secrets Streamlit, les identifiants
+des services externes (Turso, Cloudinary, SMTP) ainsi que les constantes
+globales de l'application et les paramètres de sécurité d'upload.
 """
-Module de configuration pour l'application SCI.
-Gère les variables d'environnement, les secrets Streamlit et les identifiants Turso.
-"""
+
+from __future__ import annotations
+
+import logging
 import os
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 import streamlit as st
 
-def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
-    """
-    Récupère l'URL et le Token de Turso depuis :
-    1. Streamlit Secrets (st.secrets["TURSO_DATABASE_URL"] / st.secrets["TURSO_AUTH_TOKEN"])
-    2. Variables d'environnement système (TURSO_DATABASE_URL / TURSO_AUTH_TOKEN)
-    3. Fallback SQLite local dans 'data/sci_local.db'
+logger = logging.getLogger("sci.config")
 
-    Retourne : (db_url, auth_token, is_turso)
+# --- Constantes Applicatives ---
+APP_TITLE: str = "Gestion SCI à l'IS"
+APP_ICON: str = "🏢"
+DEFAULT_CURRENCY: str = "€"
+
+# --- Paramètres Fiscaux (Régime IS) ---
+IS_REDUCED_RATE: float = 0.15
+IS_NORMAL_RATE: float = 0.25
+IS_REDUCED_RATE_CEILING: float = 42500.0
+DEFAULT_LAND_SHARE_PCT: float = 15.0
+DEFAULT_BUILDING_AMORT_YEARS: int = 25
+DEFAULT_FURNITURE_AMORT_YEARS: int = 5
+
+# --- Sécurité & Téléversement de Documents (GED) ---
+MAX_UPLOAD_SIZE_BYTES: int = 15 * 1024 * 1024  # 15 Mo
+ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = (
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".docx",
+    ".xlsx",
+    ".txt",
+)
+
+
+def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
+    """Récupère l'URL et le Token de Turso depuis secrets, env ou fallback local.
+
+    Returns:
+        Un tuple (db_url, auth_token, is_turso).
     """
     url: Optional[str] = None
     token: Optional[str] = None
@@ -33,8 +64,11 @@ def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
         token = os.environ.get("TURSO_AUTH_TOKEN")
 
     # Si nous avons une URL Turso (libsql:// ou https://)
-    if url and ("turso.io" in url or url.startswith("libsql://") or url.startswith("https://")):
-        # Normalisation : libsql-client en HTTP synchrone utilise https://
+    if url and (
+        "turso.io" in url
+        or url.startswith("libsql://")
+        or url.startswith("https://")
+    ):
         if url.startswith("libsql://"):
             url = "https://" + url[len("libsql://"):]
         return url, token, True
@@ -46,13 +80,13 @@ def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
     return local_url, None, False
 
 
-def get_cloudinary_credentials() -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """
-    Récupère les identifiants Cloudinary depuis :
-    1. Streamlit Secrets (CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET)
-    2. Variables d'environnement système
+def get_cloudinary_credentials() -> (
+    Tuple[Optional[str], Optional[str], Optional[str]]
+):
+    """Récupère les identifiants Cloudinary depuis st.secrets ou os.environ.
 
-    Retourne : (cloud_name, api_key, api_secret)
+    Returns:
+        Un tuple (cloud_name, api_key, api_secret).
     """
     cloud_name: Optional[str] = None
     api_key: Optional[str] = None
@@ -79,18 +113,60 @@ def get_cloudinary_credentials() -> Tuple[Optional[str], Optional[str], Optional
 
 
 def configure_cloudinary() -> bool:
-    """
-    Initialise le SDK Cloudinary avec les credentials disponibles.
-    Retourne True si la configuration a réussi, False sinon.
+    """Initialise le SDK Cloudinary avec les identifiants disponibles.
+
+    Returns:
+        True si la configuration a réussi, False sinon.
     """
     import cloudinary
+
     cloud_name, api_key, api_secret = get_cloudinary_credentials()
     if cloud_name and api_key and api_secret:
         cloudinary.config(
             cloud_name=cloud_name,
             api_key=api_key,
             api_secret=api_secret,
-            secure=True
+            secure=True,
         )
         return True
     return False
+
+
+def validate_file_upload(
+    filename: str,
+    file_bytes: bytes,
+    max_size: int = MAX_UPLOAD_SIZE_BYTES,
+    allowed_exts: tuple[str, ...] = ALLOWED_UPLOAD_EXTENSIONS,
+) -> Tuple[bool, Optional[str]]:
+    """Valide la taille et l'extension d'un document avant téléversement.
+
+    Args:
+        filename: Nom du fichier avec son extension.
+        file_bytes: Contenu brut du fichier en octets.
+        max_size: Taille maximale autorisée en octets.
+        allowed_exts: Tuple d'extensions autorisées en minuscules.
+
+    Returns:
+        Un tuple (est_valide, message_erreur_optionnel).
+    """
+    if not filename or not file_bytes:
+        return False, "Le fichier est vide ou invalide."
+
+    _, ext = os.path.splitext(filename.lower())
+    if ext not in allowed_exts:
+        valid_list = ", ".join(allowed_exts)
+        return (
+            False,
+            f"Format de fichier non autorisé ({ext}). Formats acceptés : {valid_list}.",
+        )
+
+    if len(file_bytes) > max_size:
+        max_mb = max_size / (1024 * 1024)
+        actual_mb = len(file_bytes) / (1024 * 1024)
+        return (
+            False,
+            f"Fichier trop volumineux ({actual_mb:.1f} Mo). "
+            f"La taille maximale autorisée est de {max_mb:.0f} Mo.",
+        )
+
+    return True, None

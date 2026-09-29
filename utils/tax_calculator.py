@@ -7,9 +7,17 @@ Prend en charge :
 - Le contrôle d'équilibre comptable rigoureux (Actif = Passif)
 - La table de correspondance avec les cases officielles de la DGFiP
 """
-from typing import Dict, List, Any, Tuple, Optional
-from datetime import datetime, date
 import calendar
+from datetime import datetime, date
+from typing import Dict, List, Any, Tuple, Optional
+from config import (
+    IS_REDUCED_RATE,
+    IS_NORMAL_RATE,
+    IS_REDUCED_RATE_CEILING,
+    DEFAULT_LAND_SHARE_PCT,
+    DEFAULT_BUILDING_AMORT_YEARS,
+    DEFAULT_FURNITURE_AMORT_YEARS,
+)
 from database import query_rows, query_one
 from utils.loan import get_annual_loan_breakdown, generate_amortization_schedule
 
@@ -211,9 +219,9 @@ def compute_income_statement(tax_year: int) -> Dict[str, Any]:
     base_15 = 0.0
     base_25 = 0.0
     if rcai > 0:
-        base_15 = min(rcai, 42500.0)
-        base_25 = max(0.0, rcai - 42500.0)
-        is_tax = (base_15 * 0.15) + (base_25 * 0.25)
+        base_15 = min(rcai, IS_REDUCED_RATE_CEILING)
+        base_25 = max(0.0, rcai - IS_REDUCED_RATE_CEILING)
+        is_tax = (base_15 * IS_REDUCED_RATE) + (base_25 * IS_NORMAL_RATE)
 
     # 8. RESULTAT NET COMPTABLE
     net_accounting_result = rcai - is_tax
