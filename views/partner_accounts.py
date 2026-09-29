@@ -1,96 +1,154 @@
+"""Vue Comptes Courants d'Associés (CCA) - Spécifique SCI à l'IS.
+
+Permet de suivre les associés de la SCI, les apports personnels
+et les remboursements en franchise d'impôt.
 """
-Vue Comptes Courants d'Associés (CCA) - Spécifique SCI à l'IS.
-Permet de suivre les associés de la SCI, les apports personnels et les remboursements en franchise d'impôt.
-"""
+
 import logging
-import streamlit as st
-import pandas as pd
 from datetime import date
-from database import query_rows, query_df, execute_write, execute_batch
-from utils.formatters import format_currency
+from typing import List
+
+import pandas as pd
+import streamlit as st
+
+from database import execute_batch, execute_write, query_rows
 from models.enums import PartnerAccountType
+from utils.formatters import format_currency
 
 logger = logging.getLogger("sci.views.partner_accounts")
 
-def get_all_partners():
-    """Retourne la liste triée et dédoublonnée de tous les associés enregistrés."""
+
+def get_all_partners() -> List[str]:
+    """Retourne la liste triée et dédoublonnée de tous les associés.
+
+    Returns:
+        List[str]: Noms des associés trouvés en base de données.
+    """
     try:
         rows = query_rows("SELECT name FROM partners ORDER BY name ASC;")
         db_partners = [r["name"].strip() for r in rows if r.get("name")]
     except Exception as err:
-        logger.warning("Impossible de charger les partenaires depuis partners: %s", err)
+        logger.warning(
+            "Impossible de charger les partenaires depuis partners: %s", err
+        )
         db_partners = []
     try:
-        cca_rows = query_rows("SELECT DISTINCT partner_name FROM partner_accounts ORDER BY partner_name ASC;")
-        cca_partners = [r["partner_name"].strip() for r in cca_rows if r.get("partner_name")]
+        cca_rows = query_rows(
+            "SELECT DISTINCT partner_name FROM partner_accounts "
+            "ORDER BY partner_name ASC;"
+        )
+        cca_partners = [
+            r["partner_name"].strip() for r in cca_rows if r.get("partner_name")
+        ]
     except Exception as err:
-        logger.warning("Impossible de charger les partenaires depuis partner_accounts: %s", err)
+        logger.warning(
+            "Impossible de charger les partenaires depuis partner_accounts: %s",
+            err,
+        )
         cca_partners = []
     return sorted(list(set(db_partners + cca_partners)))
 
-def render_partner_accounts():
-    st.markdown("## 🤝 Comptes Courants d'Associés (CCA)")
-    st.caption("Gérez les associés de la SCI, suivez leurs apports personnels et les remboursements de trésorerie en franchise d'impôt.")
 
-    tab_summary, tab_add, tab_partners, tab_history = st.tabs([
-        "📊 Soldes des Associés",
-        "➕ Enregistrer un Mouvement",
-        "👥 Associés de la SCI",
-        "📜 Grand Livre des CCA"
-    ])
+def render_partner_accounts() -> None:
+    """Affiche la vue de gestion des comptes courants d'associés."""
+    st.markdown("## 🤝 Comptes Courants d'Associés (CCA)")
+    st.caption(
+        "Gérez les associés de la SCI, suivez leurs apports personnels "
+        "et les remboursements de trésorerie en franchise d'impôt."
+    )
+
+    tab_summary, tab_add, tab_partners, tab_history = st.tabs(
+        [
+            "📊 Soldes des Associés",
+            "➕ Enregistrer un Mouvement",
+            "👥 Associés de la SCI",
+            "📜 Grand Livre des CCA",
+        ]
+    )
 
     all_partners = get_all_partners()
 
     # 1. SYNTHESE DES SOLDES
     with tab_summary:
-        all_ops = query_rows("SELECT partner_name, type, amount FROM partner_accounts;")
+        all_ops = query_rows(
+            "SELECT partner_name, type, amount FROM partner_accounts;"
+        )
         if not all_partners and not all_ops:
-            st.info("Aucun associé ni mouvement de compte courant enregistré. Utilisez l'onglet **'➕ Enregistrer un Mouvement'** ou **'👥 Associés de la SCI'** pour commencer.")
+            st.info(
+                "Aucun associé ni mouvement de compte courant enregistré. "
+                "Utilisez l'onglet **'➕ Enregistrer un Mouvement'** ou "
+                "**'👥 Associés de la SCI'** pour commencer."
+            )
         else:
-            ops_df = pd.DataFrame(all_ops) if all_ops else pd.DataFrame(columns=["partner_name", "type", "amount"])
+            ops_df = (
+                pd.DataFrame(all_ops)
+                if all_ops
+                else pd.DataFrame(columns=["partner_name", "type", "amount"])
+            )
             partner_summaries = []
             total_cca_balance = 0.0
 
             for p in all_partners:
-                p_df = ops_df[ops_df["partner_name"] == p] if not ops_df.empty else pd.DataFrame()
+                p_df = (
+                    ops_df[ops_df["partner_name"] == p]
+                    if not ops_df.empty
+                    else pd.DataFrame()
+                )
                 if not p_df.empty:
-                    apports = p_df[p_df["type"] == PartnerAccountType.APPORT.value]["amount"].sum()
-                    remboursements = p_df[p_df["type"] == PartnerAccountType.REMBOURSEMENT.value]["amount"].sum()
+                    apports = p_df[
+                        p_df["type"] == PartnerAccountType.APPORT.value
+                    ]["amount"].sum()
+                    remboursements = p_df[
+                        p_df["type"] == PartnerAccountType.REMBOURSEMENT.value
+                    ]["amount"].sum()
                 else:
                     apports = 0.0
                     remboursements = 0.0
                 balance = apports - remboursements
                 total_cca_balance += balance
-                partner_summaries.append({
-                    "Associé": p,
-                    "Total Apports (€)": apports,
-                    "Total Remboursé (€)": remboursements,
-                    "Solde Récupérable (€)": balance,
-                    "Nb Mouvements": len(p_df)
-                })
+                partner_summaries.append(
+                    {
+                        "Associé": p,
+                        "Total Apports (€)": apports,
+                        "Total Remboursé (€)": remboursements,
+                        "Solde Récupérable (€)": balance,
+                        "Nb Mouvements": len(p_df),
+                    }
+                )
 
             st.metric(
                 label="Dette totale de la SCI envers les associés (Total CCA)",
                 value=format_currency(total_cca_balance),
-                help="Montant total de trésorerie que la SCI peut reverser aux associés sans aucun impôt (reprise d'apport personnel)."
+                help=(
+                    "Montant total de trésorerie que la SCI peut reverser aux "
+                    "associés sans aucun impôt (reprise d'apport personnel)."
+                ),
             )
 
             st.markdown("---")
             st.markdown("### Répartition par Associé")
-            
+
             for row in partner_summaries:
                 with st.container():
                     c1, c2, c3, c4 = st.columns(4)
                     c1.markdown(f"#### 👤 {row['Associé']}")
                     if row["Nb Mouvements"] == 0:
                         c1.caption("Aucun mouvement financier enregistré")
-                    c2.metric("Apports cumulés", format_currency(row["Total Apports (€)"]))
-                    c3.metric("Remboursements perçus", format_currency(row["Total Remboursé (€)"]))
+                    c2.metric(
+                        "Apports cumulés",
+                        format_currency(row["Total Apports (€)"]),
+                    )
+                    c3.metric(
+                        "Remboursements perçus",
+                        format_currency(row["Total Remboursé (€)"]),
+                    )
                     c4.metric(
                         "Solde disponible",
                         format_currency(row["Solde Récupérable (€)"]),
-                        delta="À récupérer net d'impôt" if row['Solde Récupérable (€)'] > 0 else None,
-                        delta_color="normal"
+                        delta="À récupérer net d'impôt"
+                        if row["Solde Récupérable (€)"] > 0
+                        else None,
+                        delta_color="normal",
                     )
                     st.divider()
 
@@ -106,13 +164,13 @@ def render_partner_accounts():
                 selected_choice = st.selectbox(
                     "Sélectionnez l'associé *",
                     dropdown_options,
-                    key="cca_partner_select"
+                    key="cca_partner_select",
                 )
                 if selected_choice == NEW_PARTNER_LABEL:
                     partner_name = st.text_input(
                         "Nom & Prénom du nouvel associé *",
                         placeholder="ex: Marie DUPONT",
-                        key="cca_new_partner_name"
+                        key="cca_new_partner_name",
                     )
                 else:
                     partner_name = selected_choice
@@ -120,21 +178,44 @@ def render_partner_accounts():
                 partner_name = st.text_input(
                     "Nom & Prénom de l'associé *",
                     placeholder="ex: Jérôme BLONDEL",
-                    key="cca_new_partner_name"
+                    key="cca_new_partner_name",
                 )
 
-            op_date = st.date_input("Date du mouvement *", value=date.today(), key="cca_op_date").strftime("%Y-%m-%d")
+            op_date = st.date_input(
+                "Date du mouvement *", value=date.today(), key="cca_op_date"
+            ).strftime("%Y-%m-%d")
             op_type = st.selectbox(
                 "Nature de l'opération *",
-                [PartnerAccountType.APPORT.value, PartnerAccountType.REMBOURSEMENT.value],
-                format_func=lambda x: "➕ Apport (L'associé avance ou injecte de l'argent dans la SCI)" if x == PartnerAccountType.APPORT.value else "➖ Remboursement (La SCI rembourse l'associé sur son compte perso)",
-                key="cca_op_type"
+                [
+                    PartnerAccountType.APPORT.value,
+                    PartnerAccountType.REMBOURSEMENT.value,
+                ],
+                format_func=lambda x: (
+                    "➕ Apport (Avance de l'associé dans la SCI)"
+                    if x == PartnerAccountType.APPORT.value
+                    else "➖ Remboursement (La SCI rembourse l'associé)"
+                ),
+                key="cca_op_type",
             )
 
         with col2:
-            amount = st.number_input("Montant (€) *", min_value=0.01, value=5000.0, step=100.0, key="cca_amount")
-            description = st.text_input("Libellé / Objet *", placeholder="ex: Apport personnel apport prêt bancaire lot #101", key="cca_description")
-            notes = st.text_area("Notes / Réf. virement", placeholder="Virement bancaire compte perso vers compte SCI...", key="cca_notes")
+            amount = st.number_input(
+                "Montant (€) *",
+                min_value=0.01,
+                value=5000.0,
+                step=100.0,
+                key="cca_amount",
+            )
+            description = st.text_input(
+                "Libellé / Objet *",
+                placeholder="ex: Apport personnel apport prêt lot #101",
+                key="cca_description",
+            )
+            notes = st.text_area(
+                "Notes / Réf. virement",
+                placeholder="Virement bancaire compte perso vers compte SCI...",
+                key="cca_notes",
+            )
 
         submitted = st.button("💾 Enregistrer l'opération CCA", type="primary")
         if submitted:
@@ -148,16 +229,37 @@ def render_partner_accounts():
                 try:
                     # Enregistrer dans partners si inexistant
                     try:
-                        execute_write("INSERT OR IGNORE INTO partners (name) VALUES (?);", [clean_partner])
+                        execute_write(
+                            "INSERT OR IGNORE INTO partners (name) VALUES (?);",
+                            [clean_partner],
+                        )
                     except Exception:
                         pass
                     # Enregistrer le mouvement CCA
-                    execute_write("""
-                        INSERT INTO partner_accounts (partner_name, date, type, amount, description, notes)
-                        VALUES (?, ?, ?, ?, ?, ?);
-                    """, [clean_partner, op_date, op_type, amount, clean_desc, notes.strip()])
-                    st.success(f"Opération de **{amount:,.2f} €** enregistrée avec succès pour **{clean_partner}** !")
-                    for k in ["cca_new_partner_name", "cca_description", "cca_notes"]:
+                    execute_write(
+                        """
+                        INSERT INTO partner_accounts (
+                            partner_name, date, type, amount, description, notes
+                        ) VALUES (?, ?, ?, ?, ?, ?);
+                    """,
+                        [
+                            clean_partner,
+                            op_date,
+                            op_type,
+                            amount,
+                            clean_desc,
+                            notes.strip(),
+                        ],
+                    )
+                    st.success(
+                        f"Opération de **{amount:,.2f} €** enregistrée "
+                        f"avec succès pour **{clean_partner}** !"
+                    )
+                    for k in [
+                        "cca_new_partner_name",
+                        "cca_description",
+                        "cca_notes",
+                    ]:
                         st.session_state.pop(k, None)
                     st.rerun()
                 except Exception as e:
@@ -166,37 +268,84 @@ def render_partner_accounts():
     # 3. GESTION DES ASSOCIÉS
     with tab_partners:
         st.markdown("#### 👥 Gestion des Associés de la SCI")
-        st.caption("Déclarez et gérez les associés composant votre société civile immobilière.")
+        st.caption(
+            "Déclarez et gérez les associés composant votre société "
+            "civile immobilière."
+        )
 
-        with st.expander("➕ Créer un nouvel associé", expanded=not bool(all_partners)):
+        with st.expander(
+            "➕ Créer un nouvel associé", expanded=not bool(all_partners)
+        ):
             c_p1, c_p2 = st.columns(2)
             with c_p1:
-                p_new_name = st.text_input("Nom & Prénom de l'associé *", placeholder="ex: Second Associé", key="form_p_name")
-                p_new_email = st.text_input("Adresse email (optionnel)", placeholder="associe@email.com", key="form_p_email")
+                p_new_name = st.text_input(
+                    "Nom & Prénom de l'associé *",
+                    placeholder="ex: Second Associé",
+                    key="form_p_name",
+                )
+                p_new_email = st.text_input(
+                    "Adresse email (optionnel)",
+                    placeholder="associe@email.com",
+                    key="form_p_email",
+                )
             with c_p2:
-                p_new_shares = st.number_input("Parts sociales détenues", min_value=0, value=0, step=10, key="form_p_shares")
-                p_new_phone = st.text_input("Numéro de téléphone (optionnel)", placeholder="06 12 34 56 78", key="form_p_phone")
+                p_new_shares = st.number_input(
+                    "Parts sociales détenues",
+                    min_value=0,
+                    value=0,
+                    step=10,
+                    key="form_p_shares",
+                )
+                p_new_phone = st.text_input(
+                    "Numéro de téléphone (optionnel)",
+                    placeholder="06 12 34 56 78",
+                    key="form_p_phone",
+                )
 
-            if st.button("✅ Enregistrer cet associé", type="primary", key="btn_save_partner"):
+            if st.button(
+                "✅ Enregistrer cet associé",
+                type="primary",
+                key="btn_save_partner",
+            ):
                 clean_name = p_new_name.strip()
                 if not clean_name:
                     st.error("Le nom et prénom de l'associé sont obligatoires.")
                 else:
                     try:
-                        execute_write("""
+                        execute_write(
+                            """
                             INSERT INTO partners (name, email, phone, shares)
                             VALUES (?, ?, ?, ?);
-                        """, [clean_name, p_new_email.strip(), p_new_phone.strip(), int(p_new_shares)])
-                        st.success(f"L'associé **{clean_name}** a été créé avec succès !")
-                        for k in ["form_p_name", "form_p_email", "form_p_shares", "form_p_phone"]:
+                        """,
+                            [
+                                clean_name,
+                                p_new_email.strip(),
+                                p_new_phone.strip(),
+                                int(p_new_shares),
+                            ],
+                        )
+                        st.success(
+                            f"L'associé **{clean_name}** a été créé avec "
+                            "succès !"
+                        )
+                        for k in [
+                            "form_p_name",
+                            "form_p_email",
+                            "form_p_shares",
+                            "form_p_phone",
+                        ]:
                             st.session_state.pop(k, None)
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erreur lors de la création de l'associé : {e}")
+                        st.error(
+                            f"Erreur lors de la création de l'associé : {e}"
+                        )
 
         # Affichage des associés existants
         try:
-            partner_db_rows = query_rows("SELECT * FROM partners ORDER BY name ASC;")
+            partner_db_rows = query_rows(
+                "SELECT * FROM partners ORDER BY name ASC;"
+            )
         except Exception:
             partner_db_rows = []
 
@@ -205,36 +354,83 @@ def render_partner_accounts():
             p_data = []
             for r in partner_db_rows:
                 # Solde CCA pour cet associé
-                ops = query_rows("SELECT type, amount FROM partner_accounts WHERE partner_name = ?;", [r["name"]])
-                ap = sum(float(x["amount"]) for x in ops if x["type"] == "apport")
-                rem = sum(float(x["amount"]) for x in ops if x["type"] == "remboursement")
-                p_data.append({
-                    "id": r["id"],
-                    "Nom de l'associé": r["name"],
-                    "Email": r.get("email") or "—",
-                    "Téléphone": r.get("phone") or "—",
-                    "Parts": r.get("shares", 0),
-                    "Solde CCA (€)": format_currency(ap - rem),
-                    "Nb Opérations": len(ops)
-                })
+                ops = query_rows(
+                    "SELECT type, amount FROM partner_accounts "
+                    "WHERE partner_name = ?;",
+                    [r["name"]],
+                )
+                ap = sum(
+                    float(x["amount"]) for x in ops if x["type"] == "apport"
+                )
+                rem = sum(
+                    float(x["amount"])
+                    for x in ops
+                    if x["type"] == "remboursement"
+                )
+                p_data.append(
+                    {
+                        "id": r["id"],
+                        "Nom de l'associé": r["name"],
+                        "Email": r.get("email") or "—",
+                        "Téléphone": r.get("phone") or "—",
+                        "Parts": r.get("shares", 0),
+                        "Solde CCA (€)": format_currency(ap - rem),
+                        "Nb Opérations": len(ops),
+                    }
+                )
 
             df_p = pd.DataFrame(p_data)
-            st.dataframe(df_p.drop(columns=["id"]), use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_p.drop(columns=["id"]),
+                use_container_width=True,
+                hide_index=True,
+            )
 
             with st.expander("🗑️ Supprimer un associé"):
-                p_dict = {r["id"]: f"{r['name']} ({r.get('email') or 'sans email'})" for r in partner_db_rows}
-                sel_del_p = st.selectbox("Sélectionnez l'associé à supprimer :", options=list(p_dict.keys()), format_func=lambda x: p_dict[x], key="sb_del_partner")
-                p_obj = next((r for r in partner_db_rows if r["id"] == sel_del_p), None)
+                p_dict = {
+                    r["id"]: f"{r['name']} ({r.get('email') or 'sans email'})"
+                    for r in partner_db_rows
+                }
+                sel_del_p = st.selectbox(
+                    "Sélectionnez l'associé à supprimer :",
+                    options=list(p_dict.keys()),
+                    format_func=lambda x: p_dict[x],
+                    key="sb_del_partner",
+                )
+                p_obj = next(
+                    (r for r in partner_db_rows if r["id"] == sel_del_p), None
+                )
                 if p_obj:
                     # Vérifier s'il a des mouvements CCA
-                    has_ops = query_rows("SELECT id FROM partner_accounts WHERE partner_name = ? LIMIT 1;", [p_obj["name"]])
+                    has_ops = query_rows(
+                        "SELECT id FROM partner_accounts "
+                        "WHERE partner_name = ? LIMIT 1;",
+                        [p_obj["name"]],
+                    )
                     if has_ops:
-                        st.warning("⚠️ Cet associé possède des opérations de compte courant enregistrées. Sa suppression supprimera également son historique CCA.")
-                    if st.button(f"Confirmer la suppression de {p_obj['name']}", type="secondary", key="btn_confirm_del_p"):
-                        execute_batch([
-                            ("DELETE FROM partner_accounts WHERE partner_name = ?;", [p_obj["name"]]),
-                            ("DELETE FROM partners WHERE id = ?;", [sel_del_p])
-                        ])
+                        st.warning(
+                            "⚠️ Cet associé possède des opérations de compte "
+                            "courant enregistrées. Sa suppression supprimera "
+                            "également son historique CCA."
+                        )
+                    if st.button(
+                        f"Confirmer la suppression de {p_obj['name']}",
+                        type="secondary",
+                        key="btn_confirm_del_p",
+                    ):
+                        execute_batch(
+                            [
+                                (
+                                    "DELETE FROM partner_accounts "
+                                    "WHERE partner_name = ?;",
+                                    [p_obj["name"]],
+                                ),
+                                (
+                                    "DELETE FROM partners WHERE id = ?;",
+                                    [sel_del_p],
+                                ),
+                            ]
+                        )
                         st.success(f"Associé {p_obj['name']} supprimé.")
                         st.rerun()
 
@@ -243,9 +439,15 @@ def render_partner_accounts():
         current_year = date.today().year
         col_y, col_p = st.columns([1, 2])
         with col_y:
-            f_year = st.selectbox("Année", ["Toutes"] + list(range(current_year - 5, current_year + 5)), key="cca_f_yr")
+            f_year = st.selectbox(
+                "Année",
+                ["Toutes"] + list(range(current_year - 5, current_year + 5)),
+                key="cca_f_yr",
+            )
         with col_p:
-            f_partner = st.selectbox("Filtrer par associé", ["Tous"] + all_partners, key="cca_f_ptn")
+            f_partner = st.selectbox(
+                "Filtrer par associé", ["Tous"] + all_partners, key="cca_f_ptn"
+            )
 
         q = "SELECT * FROM partner_accounts WHERE 1=1"
         params = []
@@ -262,15 +464,54 @@ def render_partner_accounts():
             st.info("Aucune opération trouvée pour ces filtres.")
         else:
             df = pd.DataFrame(rows)
-            disp_df = df[["date", "partner_name", "type", "description", "amount", "notes"]].copy()
-            disp_df["type"] = disp_df["type"].apply(lambda t: "🟢 Apport (+)" if t == "apport" else "🔵 Remboursement (-)")
-            disp_df.columns = ["Date", "Associé", "Type", "Description", "Montant (€)", "Notes"]
+            disp_df = df[
+                [
+                    "date",
+                    "partner_name",
+                    "type",
+                    "description",
+                    "amount",
+                    "notes",
+                ]
+            ].copy()
+            disp_df["type"] = disp_df["type"].apply(
+                lambda t: (
+                    "🟢 Apport (+)" if t == "apport" else "🔵 Remboursement (-)"
+                )
+            )
+            disp_df.columns = [
+                "Date",
+                "Associé",
+                "Type",
+                "Description",
+                "Montant (€)",
+                "Notes",
+            ]
             st.dataframe(disp_df, use_container_width=True, hide_index=True)
 
             with st.expander("🗑️ Supprimer une opération"):
-                del_options = {r["id"]: f"#{r['id']} | {r['date']} | {r['partner_name']} | {r['type'].upper()} {r['amount']:,.2f} € — {r['description']}" for r in rows}
-                op_to_del = st.selectbox("Sélectionnez l'opération à supprimer", options=list(del_options.keys()), format_func=lambda x: del_options[x], key="cca_del_op_sel")
-                if st.button("Confirmer la suppression", type="secondary", key="cca_btn_confirm_del"):
-                    execute_write("DELETE FROM partner_accounts WHERE id = ?;", [op_to_del])
+                del_options = {
+                    r["id"]: (
+                        f"#{r['id']} | {r['date']} | {r['partner_name']} | "
+                        f"{r['type'].upper()} {r['amount']:,.2f} € — "
+                        f"{r['description']}"
+                    )
+                    for r in rows
+                }
+                op_to_del = st.selectbox(
+                    "Sélectionnez l'opération à supprimer",
+                    options=list(del_options.keys()),
+                    format_func=lambda x: del_options[x],
+                    key="cca_del_op_sel",
+                )
+                if st.button(
+                    "Confirmer la suppression",
+                    type="secondary",
+                    key="cca_btn_confirm_del",
+                ):
+                    execute_write(
+                        "DELETE FROM partner_accounts WHERE id = ?;",
+                        [op_to_del],
+                    )
                     st.success("Opération supprimée avec succès.")
                     st.rerun()

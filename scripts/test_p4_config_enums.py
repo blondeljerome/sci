@@ -12,7 +12,6 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import (
-    ALLOWED_UPLOAD_EXTENSIONS,
     APP_ICON,
     APP_TITLE,
     DEFAULT_CURRENCY,
@@ -26,12 +25,9 @@ from config import (
 )
 from models.enums import (
     DocumentCategory,
-    EntityType,
     PartnerAccountType,
     PropertyStatus,
-    PropertyType,
     RentStatus,
-    UserRole,
 )
 from utils.storage import upload_file
 
@@ -99,7 +95,9 @@ class TestFileUploadValidation(unittest.TestCase):
         """Un fichier excédant la limite autorisée doit être rejeté."""
         # Limite par défaut : 15 Mo
         oversized_bytes = b"0" * (MAX_UPLOAD_SIZE_BYTES + 1024)
-        is_valid, err = validate_file_upload("gros_fichier.pdf", oversized_bytes)
+        is_valid, err = validate_file_upload(
+            "gros_fichier.pdf", oversized_bytes
+        )
         self.assertFalse(is_valid)
         self.assertIsNotNone(err)
         self.assertIn("trop volumineux", err)
@@ -113,7 +111,7 @@ class TestFileUploadValidation(unittest.TestCase):
         self.assertFalse(is_valid_bytes)
 
     def test_storage_upload_file_raises_on_invalid_extension(self) -> None:
-        """storage.upload_file doit lever ValueError si l'extension est invalide."""
+        """storage.upload_file doit lever ValueError si extension invalide."""
         with self.assertRaises(ValueError):
             upload_file(b"content", "malicious_script.sh")
 
@@ -137,10 +135,12 @@ class TestEnumsIntegrity(unittest.TestCase):
     def test_partner_account_type_values(self) -> None:
         """Vérifie les valeurs textuelles de PartnerAccountType."""
         self.assertEqual(PartnerAccountType.APPORT.value, "apport")
-        self.assertEqual(PartnerAccountType.REMBOURSEMENT.value, "remboursement")
+        self.assertEqual(
+            PartnerAccountType.REMBOURSEMENT.value, "remboursement"
+        )
 
     def test_document_category_values(self) -> None:
-        """Vérifie que DocumentCategory contient les catégories GED indispensables."""
+        """Vérifie que DocumentCategory contient les catégories requises."""
         categories = [cat.value for cat in DocumentCategory]
         self.assertIn("Bail & État des lieux", categories)
         self.assertIn("Quittance & Reçu de paiement", categories)

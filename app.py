@@ -1,43 +1,54 @@
+"""Point d'entrée principal de l'application Streamlit.
+
+Gestion Immobilière SCI à l'IS.
 """
-Point d'entrée principal de l'application Streamlit de Gestion Immobilière SCI à l'IS.
-"""
+
 import logging
+
 import streamlit as st
-from config import APP_TITLE, APP_ICON
-from database import init_db, query_one, get_connection_info
+
+from config import APP_ICON, APP_TITLE
+from database import get_connection_info, init_db, query_one
+from utils.auth import authenticate
+from views.dashboard import render_dashboard
+from views.documents import render_documents
+from views.legal import render_legal
+from views.loans import render_loans
+from views.partner_accounts import render_partner_accounts
+from views.properties import render_properties
+from views.property_expenses import render_property_expenses
+from views.rents import render_rents
+from views.sci_expenses import render_sci_expenses
+from views.settings import render_settings
+from views.tax_report import render_tax_report
+from views.tenants import render_tenants
 
 logger = logging.getLogger("sci.app")
 if not logger.handlers:
     h = logging.StreamHandler()
-    h.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [sci.app]: %(message)s"))
+    h.setFormatter(
+        logging.Formatter(
+            "[%(asctime)s] [%(levelname)s] [sci.app]: %(message)s"
+        )
+    )
     logger.addHandler(h)
     logger.setLevel(logging.INFO)
-from views.dashboard import render_dashboard
-from views.properties import render_properties
-from views.tenants import render_tenants
-from views.rents import render_rents
-from views.loans import render_loans
-from views.sci_expenses import render_sci_expenses
-from views.property_expenses import render_property_expenses
-from views.partner_accounts import render_partner_accounts
-from views.legal import render_legal
-from views.documents import render_documents
-from views.tax_report import render_tax_report
-from views.settings import render_settings
 
 # Configuration de la page Streamlit
 st.set_page_config(
     page_title=APP_TITLE,
     page_icon=APP_ICON,
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # Injection CSS pour une interface moderne et soignée
-st.markdown("""
+st.markdown(
+    """
 <style>
     html, body, [class*="css"] {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                     Roboto, Helvetica, Arial, sans-serif;
     }
     
     div[data-testid="stMetric"] {
@@ -93,7 +104,9 @@ st.markdown("""
         margin-top: 4px;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Initialisation automatique de la base de données au démarrage
 if "db_initialized" not in st.session_state:
@@ -107,36 +120,55 @@ if "db_initialized" not in st.session_state:
 # Récupération des informations de la SCI
 sci_info = {}
 try:
-    sci_info = query_one("SELECT name, city, tax_regime FROM sci_info WHERE id = 1;") or {}
+    sci_info = (
+        query_one("SELECT name, city, tax_regime FROM sci_info WHERE id = 1;")
+        or {}
+    )
 except Exception as err:
-    logger.warning("Impossible de récupérer les informations de la SCI: %s", err)
+    logger.warning(
+        "Impossible de récupérer les informations de la SCI: %s", err
+    )
 
 sci_name = sci_info.get("name", "Ma SCI Immobilière")
 tax_regime = sci_info.get("tax_regime", "IS")
 
 # Vérification de l'authentification
-from utils.auth import authenticate
-
 if "authenticated_user" not in st.session_state:
     # Interface d'accueil / Connexion centrée
     _, col_login, _ = st.columns([1, 1.3, 1])
     with col_login:
         st.write("")
         st.write("")
-        st.markdown(f"""
-        <div style="text-align: center; margin-bottom: 24px; padding-top: 20px;">
+        st.markdown(
+            f"""
+        <div style="text-align: center; margin-bottom: 24px;
+                    padding-top: 20px;">
             <span style="font-size: 48px;">🏢</span>
-            <h1 style="font-size: 26px; margin: 8px 0; color: #0f172a;">{sci_name}</h1>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 0;">Portail de Gestion Immobilière — Accès sécurisé</p>
+            <h1 style="font-size: 26px; margin: 8px 0; color: #0f172a;">
+                {sci_name}
+            </h1>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 0;">
+                Portail de Gestion Immobilière — Accès sécurisé
+            </p>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         with st.form("form_login"):
             st.markdown("#### Connexion")
-            username_input = st.text_input("Identifiant", placeholder="ex: jerome ou claire")
-            password_input = st.text_input("Mot de passe", type="password", placeholder="Votre mot de passe")
-            
-            submit_btn = st.form_submit_button("Se connecter 🔐", type="primary", use_container_width=True)
+            username_input = st.text_input(
+                "Identifiant", placeholder="ex: jerome ou claire"
+            )
+            password_input = st.text_input(
+                "Mot de passe",
+                type="password",
+                placeholder="Votre mot de passe",
+            )
+
+            submit_btn = st.form_submit_button(
+                "Se connecter 🔐", type="primary", use_container_width=True
+            )
             if submit_btn:
                 user = authenticate(username_input, password_input)
                 if user:
@@ -152,7 +184,8 @@ if "authenticated_user" not in st.session_state:
             - Identifiants configurés : `jerome` ou `claire`
             - Mot de passe initial : `sci2026!`
             
-            *Une fois connecté, vous pourrez modifier votre mot de passe dans **Paramètres > Sécurité & Utilisateurs**.*
+            *Une fois connecté, vous pourrez modifier votre mot de passe
+            dans **Paramètres > Sécurité & Utilisateurs**.*
             """)
 
     # Bloquer l'exécution du reste de l'application tant que non connecté
@@ -164,14 +197,24 @@ current_user = st.session_state["authenticated_user"]
 # Barre latérale (Sidebar)
 with st.sidebar:
     st.markdown(f"### 🏢 {sci_name}")
-    
+
     # Badge utilisateur connecté + déconnexion
-    st.markdown(f"""
-    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;">
-        <div style="font-weight: 600; color: #0f172a; font-size: 14px;">👤 {current_user.get('full_name', current_user.get('username'))}</div>
-        <div style="font-size: 12px; color: #64748b;">Compte : <code>{current_user.get('username')}</code></div>
+    full_name = current_user.get("full_name", current_user.get("username"))
+    username = current_user.get("username")
+    st.markdown(
+        f"""
+    <div style="background: #ffffff; border: 1px solid #e2e8f0;
+                border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;">
+        <div style="font-weight: 600; color: #0f172a; font-size: 14px;">
+            👤 {full_name}
+        </div>
+        <div style="font-size: 12px; color: #64748b;">
+            Compte : <code>{username}</code>
+        </div>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     if st.button("🚪 Se déconnecter", use_container_width=True):
         st.session_state.pop("authenticated_user", None)
@@ -181,11 +224,21 @@ with st.sidebar:
 
     conn_info = get_connection_info()
     if conn_info["is_turso"]:
-        st.markdown('<span class="badge badge-turso">☁️ Turso Cloud Connecté</span>', unsafe_allow_html=True)
+        st.markdown(
+            '<span class="badge badge-turso">☁️ Turso Cloud Connecté</span>',
+            unsafe_allow_html=True,
+        )
     else:
-        st.markdown('<span class="badge badge-local">💾 Mode Local SQLite</span>', unsafe_allow_html=True)
+        st.markdown(
+            '<span class="badge badge-local">💾 Mode Local SQLite</span>',
+            unsafe_allow_html=True,
+        )
 
-    st.markdown(f'<br><span class="badge badge-is">⚖️ Régime : {tax_regime} (Impôt sur les Sociétés)</span>', unsafe_allow_html=True)
+    st.markdown(
+        f'<br><span class="badge badge-is">'
+        f"⚖️ Régime : {tax_regime} (Impôt sur les Sociétés)</span>",
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
     st.markdown("**Navigation**")
@@ -203,9 +256,9 @@ with st.sidebar:
             "📄 Documents & Juridique",
             "📎 Coffre-fort Numérique (GED)",
             "📑 Liasse Fiscale IS (2065)",
-            "⚙️ Paramètres & Configuration"
+            "⚙️ Paramètres & Configuration",
         ],
-        label_visibility="collapsed"
+        label_visibility="collapsed",
     )
 
     st.markdown("---")

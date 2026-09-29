@@ -6,9 +6,10 @@ Conforme au Google Python Style Guide.
 
 from __future__ import annotations
 
-from datetime import date
 import logging
+from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
+
 from database import execute_write, query_one, query_rows
 from models.enums import RentStatus
 from utils.legal_docs import save_avis_echeance_to_ged
@@ -175,7 +176,7 @@ def record_full_payment(
 
 
 def get_monthly_payments(month: int, year: int) -> List[Dict[str, Any]]:
-    """Récupère l'ensemble des échéances de paiement d'un mois avec les liens GED.
+    """Récupère les échéances de paiement d'un mois avec les liens GED.
 
     Args:
         month: Numéro du mois (1 à 12).

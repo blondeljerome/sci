@@ -1,19 +1,35 @@
+"""Vue Gestion des Emprunts Bancaires & Tableaux d'Amortissement.
+
+Spécifique SCI à l'IS : ventilation rigoureuse capital /
+intérêts déductibles / assurance.
 """
-Vue Gestion des Emprunts Bancaires & Tableaux d'Amortissement.
-Spécifique SCI à l'IS : ventilation rigoureuse capital / intérêts déductibles / assurance.
-"""
-import streamlit as st
-import pandas as pd
+
 from datetime import date
-from database import query_rows, query_one, execute_write
-from utils.loan import calculate_monthly_payment, generate_amortization_schedule, get_annual_loan_breakdown
+
+import pandas as pd
+import streamlit as st
+
+from database import execute_write, query_rows
 from utils.formatters import format_currency
+from utils.loan import (
+    calculate_monthly_payment,
+    generate_amortization_schedule,
+    get_annual_loan_breakdown,
+)
 
-def render_loans():
+
+def render_loans() -> None:
+    """Affiche la vue de gestion des emprunts bancaires et échéanciers."""
     st.markdown("## 🏦 Emprunts Bancaires & Crédits Immobiliers")
-    st.caption("Gérez les financements de votre SCI, visualisez les tableaux d'amortissement et ventilez automatiquement les intérêts déductibles de l'IS.")
+    st.caption(
+        "Gérez les financements de votre SCI, visualisez les tableaux "
+        "d'amortissement et ventilez automatiquement les intérêts "
+        "déductibles de l'IS."
+    )
 
-    tab_list, tab_add = st.tabs(["📋 Liste des Prêts & Échéanciers", "➕ Ajouter un Emprunt"])
+    tab_list, tab_add = st.tabs(
+        ["📋 Liste des Prêts & Échéanciers", "➕ Ajouter un Emprunt"]
+    )
 
     # 1. LISTE DES PRETS
     with tab_list:
@@ -25,53 +41,107 @@ def render_loans():
         """)
 
         if not loans:
-            st.info("Aucun emprunt enregistré pour la SCI. Utilisez l'onglet **'➕ Ajouter un Emprunt'** pour saisir votre premier crédit immobilier.")
+            st.info(
+                "Aucun emprunt enregistré pour la SCI. Utilisez l'onglet "
+                "**'➕ Ajouter un Emprunt'** pour saisir votre premier "
+                "crédit immobilier."
+            )
         else:
             current_year = date.today().year
-            total_borrowed = sum(l["amount"] for l in loans)
+            total_borrowed = sum(loan["amount"] for loan in loans)
             total_monthly_installments = 0.0
             total_interests_this_year = 0.0
             total_remaining_balance = 0.0
 
-            for l in loans:
-                m_pay = calculate_monthly_payment(l["amount"], l["annual_interest_rate"], l["duration_months"])
-                total_monthly_installments += (m_pay + float(l.get("monthly_insurance", 0.0)))
-                breakdown = get_annual_loan_breakdown(l, current_year)
+            for loan in loans:
+                m_pay = calculate_monthly_payment(
+                    loan["amount"],
+                    loan["annual_interest_rate"],
+                    loan["duration_months"],
+                )
+                total_monthly_installments += m_pay + float(
+                    loan.get("monthly_insurance", 0.0)
+                )
+                breakdown = get_annual_loan_breakdown(loan, current_year)
                 total_interests_this_year += breakdown["interest_paid"]
                 total_remaining_balance += breakdown["remaining_balance"]
 
             # Cartes de synthèse globale des emprunts
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Capital Total Emprunté", format_currency(total_borrowed))
-            c2.metric("Capital Restant Dû (estimé)", format_currency(total_remaining_balance), help="Dette bancaire restante au passif du bilan")
-            c3.metric("Mensualités Totales", f"{format_currency(total_monthly_installments)} / mois", help="Assurance comprise")
+            c2.metric(
+                "Capital Restant Dû (estimé)",
+                format_currency(total_remaining_balance),
+                help="Dette bancaire restante au passif du bilan",
+            )
+            c3.metric(
+                "Mensualités Totales",
+                f"{format_currency(total_monthly_installments)} / mois",
+                help="Assurance comprise",
+            )
             c4.metric(
                 f"Intérêts Déductibles IS ({current_year})",
                 format_currency(total_interests_this_year),
-                help="Charges financières qui viennent réduire l'impôt sur les sociétés cette année"
+                help="Charges financières déductibles de l'IS cette année",
             )
 
             st.markdown("---")
 
             for loan in loans:
-                m_pay = calculate_monthly_payment(loan["amount"], loan["annual_interest_rate"], loan["duration_months"])
+                m_pay = calculate_monthly_payment(
+                    loan["amount"],
+                    loan["annual_interest_rate"],
+                    loan["duration_months"],
+                )
                 ins = float(loan.get("monthly_insurance", 0.0))
                 tot_m = m_pay + ins
                 dur_years = loan["duration_months"] // 12
+                loan_ref_str = (
+                    loan.get("loan_reference") or "Prêt immobilier"
+                )
+                expander_label = (
+                    f"🏦 {loan['bank_name']} — {loan_ref_str} "
+                    f"({format_currency(tot_m)}/mois sur {dur_years} ans)"
+                )
+                prop_fin_str = (
+                    loan.get("property_name") or "Financement global SCI"
+                )
 
-                with st.expander(f"🏦 {loan['bank_name']} — {loan.get('loan_reference') or 'Prêt immobilier'} ({format_currency(tot_m)}/mois sur {dur_years} ans)", expanded=True):
+                with st.expander(expander_label, expanded=True):
                     lc1, lc2, lc3 = st.columns(3)
                     with lc1:
-                        st.markdown(f"**Bien financé :** {loan.get('property_name') or 'Financement global SCI'}")
-                        st.markdown(f"**Montant emprunté :** {format_currency(loan['amount'])}")
-                        st.markdown(f"**Taux nominal :** {loan['annual_interest_rate']:.2f} %")
+                        st.markdown(
+                            f"**Bien financé :** {prop_fin_str}"
+                        )
+                        st.markdown(
+                            f"**Montant emprunté :** "
+                            f"{format_currency(loan['amount'])}"
+                        )
+                        st.markdown(
+                            f"**Taux nominal :** "
+                            f"{loan['annual_interest_rate']:.2f} %"
+                        )
                     with lc2:
-                        st.markdown(f"**Durée :** {loan['duration_months']} mois ({dur_years} ans)")
-                        st.markdown(f"**Date 1ère échéance :** {loan['start_date']}")
-                        st.markdown(f"**Assurance mensuelle :** {format_currency(ins)}/mois")
+                        st.markdown(
+                            f"**Durée :** {loan['duration_months']} mois "
+                            f"({dur_years} ans)"
+                        )
+                        st.markdown(
+                            f"**Date 1ère échéance :** {loan['start_date']}"
+                        )
+                        st.markdown(
+                            f"**Assurance mensuelle :** "
+                            f"{format_currency(ins)}/mois"
+                        )
                     with lc3:
-                        st.markdown(f"**Mensualité hors assurance :** {format_currency(m_pay)}")
-                        st.markdown(f"**Mensualité totale prélevée :** **{format_currency(tot_m)} CC**")
+                        st.markdown(
+                            f"**Mensualité hors assurance :** "
+                            f"{format_currency(m_pay)}"
+                        )
+                        st.markdown(
+                            f"**Mensualité totale prélevée :** "
+                            f"**{format_currency(tot_m)} CC**"
+                        )
                         if loan.get("notes"):
                             st.caption(f"📝 {loan.get('notes')}")
 
@@ -80,81 +150,212 @@ def render_loans():
                     df_sched = pd.DataFrame(sched)
 
                     # Option d'affichage : par année ou par mois
-                    view_mode = st.radio("Affichage de l'échéancier", ["Synthèse par Année (Fiscalité IS)", "Détail mois par mois"], horizontal=True, key=f"view_mode_{loan['id']}")
+                    view_mode = st.radio(
+                        "Affichage de l'échéancier",
+                        [
+                            "Synthèse par Année (Fiscalité IS)",
+                            "Détail mois par mois",
+                        ],
+                        horizontal=True,
+                        key=f"view_mode_{loan['id']}",
+                    )
 
                     if view_mode == "Synthèse par Année (Fiscalité IS)":
-                        df_annual = df_sched.groupby("year").agg({
-                            "capital": "sum",
-                            "interest": "sum",
-                            "insurance": "sum",
-                            "total_monthly": "sum",
-                            "end_balance": "last"
-                        }).reset_index()
-                        df_annual.columns = ["Année", "Capital remboursé (€)", "Intérêts déductibles IS (€)", "Assurance déductible (€)", "Total annuel prélevé (€)", "Capital restant fin d'année (€)"]
-                        st.dataframe(df_annual.style.format({
-                            "Capital remboursé (€)": "{:,.2f} €",
-                            "Intérêts déductibles IS (€)": "{:,.2f} €",
-                            "Assurance déductible (€)": "{:,.2f} €",
-                            "Total annuel prélevé (€)": "{:,.2f} €",
-                            "Capital restant fin d'année (€)": "{:,.2f} €"
-                        }), use_container_width=True, hide_index=True)
+                        df_annual = (
+                            df_sched.groupby("year")
+                            .agg(
+                                {
+                                    "capital": "sum",
+                                    "interest": "sum",
+                                    "insurance": "sum",
+                                    "total_monthly": "sum",
+                                    "end_balance": "last",
+                                }
+                            )
+                            .reset_index()
+                        )
+                        df_annual.columns = [
+                            "Année",
+                            "Capital remboursé (€)",
+                            "Intérêts déductibles IS (€)",
+                            "Assurance déductible (€)",
+                            "Total annuel prélevé (€)",
+                            "Capital restant fin d'année (€)",
+                        ]
+                        st.dataframe(
+                            df_annual.style.format(
+                                {
+                                    "Capital remboursé (€)": "{:,.2f} €",
+                                    "Intérêts déductibles IS (€)": "{:,.2f} €",
+                                    "Assurance déductible (€)": "{:,.2f} €",
+                                    "Total annuel prélevé (€)": (
+                                        "{:,.2f} €"
+                                    ),
+                                    "Capital restant fin d'année (€)": (
+                                        "{:,.2f} €"
+                                    ),
+                                }
+                            ),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
                     else:
-                        disp_cols = ["date", "month_num", "start_balance", "capital", "interest", "insurance", "total_monthly", "end_balance"]
+                        disp_cols = [
+                            "date",
+                            "month_num",
+                            "start_balance",
+                            "capital",
+                            "interest",
+                            "insurance",
+                            "total_monthly",
+                            "end_balance",
+                        ]
                         df_m = df_sched[disp_cols].copy()
-                        df_m.columns = ["Date", "Mois N°", "Capital Début (€)", "Capital (€)", "Intérêts (€)", "Assurance (€)", "Mensualité (€)", "Capital Restant (€)"]
-                        st.dataframe(df_m.style.format({
-                            "Capital Début (€)": "{:,.2f} €",
-                            "Capital (€)": "{:,.2f} €",
-                            "Intérêts (€)": "{:,.2f} €",
-                            "Assurance (€)": "{:,.2f} €",
-                            "Mensualité (€)": "{:,.2f} €",
-                            "Capital Restant (€)": "{:,.2f} €"
-                        }), height=300, use_container_width=True, hide_index=True)
+                        df_m.columns = [
+                            "Date",
+                            "Mois N°",
+                            "Capital Début (€)",
+                            "Capital (€)",
+                            "Intérêts (€)",
+                            "Assurance (€)",
+                            "Mensualité (€)",
+                            "Capital Restant (€)",
+                        ]
+                        st.dataframe(
+                            df_m.style.format(
+                                {
+                                    "Capital Début (€)": "{:,.2f} €",
+                                    "Capital (€)": "{:,.2f} €",
+                                    "Intérêts (€)": "{:,.2f} €",
+                                    "Assurance (€)": "{:,.2f} €",
+                                    "Mensualité (€)": "{:,.2f} €",
+                                    "Capital Restant (€)": "{:,.2f} €",
+                                }
+                            ),
+                            height=300,
+                            use_container_width=True,
+                            hide_index=True,
+                        )
 
                     # Suppression du prêt
-                    if st.button(f"🗑️ Supprimer ce prêt #{loan['id']}", key=f"del_loan_{loan['id']}", type="secondary"):
-                        execute_write("DELETE FROM loans WHERE id = ?;", [loan["id"]])
+                    if st.button(
+                        f"🗑️ Supprimer ce prêt #{loan['id']}",
+                        key=f"del_loan_{loan['id']}",
+                        type="secondary",
+                    ):
+                        execute_write(
+                            "DELETE FROM loans WHERE id = ?;", [loan["id"]]
+                        )
                         st.warning("Prêt supprimé avec succès.")
                         st.rerun()
 
     # 2. AJOUTER UN EMPRUNT
     with tab_add:
         st.markdown("#### Nouvel Emprunt Immobilier")
-        all_props = query_rows("SELECT id, name FROM properties ORDER BY name ASC;")
-        prop_opts = {None: "Aucun bien en particulier (Financement global SCI)"} | {p["id"]: p["name"] for p in all_props}
+        all_props = query_rows(
+            "SELECT id, name FROM properties ORDER BY name ASC;"
+        )
+        prop_opts = {
+            None: "Aucun bien en particulier (Financement global SCI)"
+        } | {p["id"]: p["name"] for p in all_props}
 
         with st.form("form_add_loan", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                bank_name = st.text_input("Établissement bancaire *", placeholder="ex: Crédit Agricole, BNP Paribas, CIC...")
-                loan_ref = st.text_input("Numéro ou référence du prêt", placeholder="ex: PRET-IMMO-2024-8901")
-                selected_prop = st.selectbox("Bien rattaché", options=list(prop_opts.keys()), format_func=lambda x: prop_opts[x])
-                start_date = st.date_input("Date de la 1ère mensualité *", value=date.today()).strftime("%Y-%m-%d")
+                bank_name = st.text_input(
+                    "Établissement bancaire *",
+                    placeholder="ex: Crédit Agricole, BNP Paribas, CIC...",
+                )
+                loan_ref = st.text_input(
+                    "Numéro ou référence du prêt",
+                    placeholder="ex: PRET-IMMO-2024-8901",
+                )
+                selected_prop = st.selectbox(
+                    "Bien rattaché",
+                    options=list(prop_opts.keys()),
+                    format_func=lambda x: prop_opts[x],
+                )
+                start_date = st.date_input(
+                    "Date de la 1ère mensualité *", value=date.today()
+                ).strftime("%Y-%m-%d")
 
             with col2:
-                amount = st.number_input("Capital initial emprunté (€) *", min_value=1000.0, value=100000.0, step=5000.0)
-                rate = st.number_input("Taux d'intérêt annuel fixe (%) *", min_value=0.01, max_value=15.0, value=3.20, step=0.05)
-                duration_years = st.number_input("Durée du prêt (en années) *", min_value=1, max_value=35, value=20, step=1)
-                insurance = st.number_input("Cotisation mensuelle d'assurance (€)", min_value=0.0, value=25.0, step=5.0)
+                amount = st.number_input(
+                    "Capital initial emprunté (€) *",
+                    min_value=1000.0,
+                    value=100000.0,
+                    step=5000.0,
+                )
+                rate = st.number_input(
+                    "Taux d'intérêt annuel fixe (%) *",
+                    min_value=0.01,
+                    max_value=15.0,
+                    value=3.20,
+                    step=0.05,
+                )
+                duration_years = st.number_input(
+                    "Durée du prêt (en années) *",
+                    min_value=1,
+                    max_value=35,
+                    value=20,
+                    step=1,
+                )
+                insurance = st.number_input(
+                    "Cotisation mensuelle d'assurance (€)",
+                    min_value=0.0,
+                    value=25.0,
+                    step=5.0,
+                )
 
-            notes = st.text_area("Conditions particulières / nantissement / hypothèque", placeholder="Hypothèque légale spéciale de prêteur de deniers...")
+            notes = st.text_area(
+                "Conditions particulières / nantissement / hypothèque",
+                placeholder="Hypothèque légale de prêteur de deniers...",
+            )
 
             # Aperçu en direct
             dur_m = int(duration_years * 12)
             monthly_est = calculate_monthly_payment(amount, rate, dur_m)
-            st.info(f"💡 **Estimation de la mensualité :** **{monthly_est + insurance:.2f} € / mois** (hors assurance : {monthly_est:.2f} € + assurance : {insurance:.2f} €)")
+            total_est = monthly_est + insurance
+            st.info(
+                f"💡 **Estimation de la mensualité :** "
+                f"**{total_est:.2f} € / mois** "
+                f"(hors assurance : {monthly_est:.2f} € + "
+                f"assurance : {insurance:.2f} €)"
+            )
 
-            submitted = st.form_submit_button("💾 Enregistrer le prêt et générer le tableau d'amortissement", type="primary")
+            submitted = st.form_submit_button(
+                "💾 Enregistrer le prêt et générer le tableau d'amortissement",
+                type="primary",
+            )
             if submitted:
                 if not bank_name.strip():
                     st.error("Le nom de la banque est obligatoire.")
                 else:
                     try:
-                        execute_write("""
-                            INSERT INTO loans (property_id, bank_name, loan_reference, start_date, amount, annual_interest_rate, duration_months, monthly_insurance, notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                        """, [selected_prop, bank_name.strip(), loan_ref.strip(), start_date, amount, rate, dur_m, insurance, notes.strip()])
-                        st.success(f"Emprunt de **{amount:,.2f} €** enregistré avec succès auprès de **{bank_name}** !")
+                        execute_write(
+                            """
+                            INSERT INTO loans (
+                                property_id, bank_name, loan_reference,
+                                start_date, amount, annual_interest_rate,
+                                duration_months, monthly_insurance, notes
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                        """,
+                            [
+                                selected_prop,
+                                bank_name.strip(),
+                                loan_ref.strip(),
+                                start_date,
+                                amount,
+                                rate,
+                                dur_m,
+                                insurance,
+                                notes.strip(),
+                            ],
+                        )
+                        st.success(
+                            f"Emprunt de **{amount:,.2f} €** enregistré avec "
+                            f"succès auprès de **{bank_name}** !"
+                        )
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erreur : {e}")

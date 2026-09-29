@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Optional, Tuple
+
 import streamlit as st
 
 logger = logging.getLogger("sci.config")
@@ -41,7 +42,7 @@ ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = (
 
 
 def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
-    """Récupère l'URL et le Token de Turso depuis secrets, env ou fallback local.
+    """Récupère l'URL et le Token de Turso depuis secrets, env ou fallback.
 
     Returns:
         Un tuple (db_url, auth_token, is_turso).
@@ -70,7 +71,7 @@ def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
         or url.startswith("https://")
     ):
         if url.startswith("libsql://"):
-            url = "https://" + url[len("libsql://"):]
+            url = "https://" + url[len("libsql://") :]
         return url, token, True
 
     # 3. Fallback local SQLite
@@ -80,9 +81,9 @@ def get_turso_credentials() -> Tuple[Optional[str], Optional[str], bool]:
     return local_url, None, False
 
 
-def get_cloudinary_credentials() -> (
-    Tuple[Optional[str], Optional[str], Optional[str]]
-):
+def get_cloudinary_credentials() -> Tuple[
+    Optional[str], Optional[str], Optional[str]
+]:
     """Récupère les identifiants Cloudinary depuis st.secrets ou os.environ.
 
     Returns:
@@ -157,7 +158,8 @@ def validate_file_upload(
         valid_list = ", ".join(allowed_exts)
         return (
             False,
-            f"Format de fichier non autorisé ({ext}). Formats acceptés : {valid_list}.",
+            f"Format de fichier non autorisé ({ext}). "
+            f"Formats acceptés : {valid_list}.",
         )
 
     if len(file_bytes) > max_size:

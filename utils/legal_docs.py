@@ -1,25 +1,33 @@
-"""
-Générateur de documents juridiques et administratifs pour la gestion de SCI.
+"""Générateur de documents juridiques et administratifs pour la gestion de SCI.
 - Avis d'échéance (Appel de loyer)
 - Relance d'impayé amiable (J+7)
 - Mise en demeure de payer (J+21 - Clause résolutoire)
-- Procès-Verbal d'Assemblée Générale Ordinaire (PV d'AGO annuelle d'approbation des comptes)
+- Procès-Verbal d'Assemblée Générale Ordinaire
+  (PV d'AGO annuelle d'approbation des comptes)
 """
+
 import io
-import os
-from datetime import date, datetime
-from typing import Dict, Any, Optional, Tuple
+from datetime import date
+from typing import Any, Dict, Optional, Tuple
 
-from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import (
+    HRFlowable,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
-from database import query_one, execute_write
+from database import execute_write, query_one
 from utils import storage
-from utils.formatters import MONTH_NAMES_FR, get_month_name
+from utils.formatters import MONTH_NAMES_FR
 
 MONTH_NAMES = [""] + MONTH_NAMES_FR
+
 
 # 1. AVIS D'ECHEANCE / APPEL DE LOYER
 def generate_avis_echeance_html(
@@ -30,26 +38,64 @@ def generate_avis_echeance_html(
     year: int,
     due_date: str,
     rent_amount: Optional[float] = None,
-    charges_amount: Optional[float] = None
+    charges_amount: Optional[float] = None,
 ) -> str:
+    """Génère l'Avis d'échéance / Appel de loyer au format HTML.
+
+    Args:
+        sci_info: Dictionnaire des coordonnées de la SCI.
+        tenant: Dictionnaire du locataire.
+        property_info: Dictionnaire du logement loué.
+        month: Numéro du mois (1-12).
+        year: Année (ex: 2026).
+        due_date: Date d'exigibilité (ex: 05/04/2026).
+        rent_amount: Montant du loyer principal si surchargé.
+        charges_amount: Montant des charges si surchargé.
+
+    Returns:
+        str: Code HTML de l'avis d'échéance.
+    """
     period_str = f"{MONTH_NAMES[month]} {year}"
-    rent = float(rent_amount if rent_amount is not None else tenant.get("rent_amount", 0.0) or 0.0)
-    charges = float(charges_amount if charges_amount is not None else tenant.get("charges_provision", 0.0) or 0.0)
+    rent = float(
+        rent_amount
+        if rent_amount is not None
+        else tenant.get("rent_amount", 0.0) or 0.0
+    )
+    charges = float(
+        charges_amount
+        if charges_amount is not None
+        else tenant.get("charges_provision", 0.0) or 0.0
+    )
     total = rent + charges
+    t_last_upper = tenant.get("last_name", "").upper()
+    t_first = tenant.get("first_name", "")
+    tenant_name = f"{t_first} {t_last_upper}".strip()
+    p_addr = property_info.get("address", "")
+    p_zip = property_info.get("postal_code", "")
+    p_city = property_info.get("city", "")
+    sci_name = sci_info.get("name", "SCI")
+    iban_val = sci_info.get("iban") or "À renseigner dans les Paramètres"
+    bic_val = sci_info.get("bic") or ""
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Avis d'échéance - {period_str} - {tenant.get('last_name')}</title>
+<title>Avis d'échéance - {period_str} - {tenant_name}</title>
 <style>
     @media print {{
-        body {{ margin: 0; padding: 20px; font-size: 12pt; background: #fff !important; color: #000 !important; }}
+        body {{
+            margin: 0; padding: 20px; font-size: 12pt;
+            background: #fff !important; color: #000 !important;
+        }}
         .no-print {{ display: none !important; }}
-        .card {{ box-shadow: none !important; border: 1px solid #ccc !important; }}
+        .card {{
+            box-shadow: none !important; border: 1px solid #ccc !important;
+        }}
     }}
     body {{
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+            Roboto, Helvetica, Arial, sans-serif;
         background-color: #f1f5f9;
         margin: 0;
         padding: 30px;
@@ -87,7 +133,10 @@ def generate_avis_echeance_html(
         font-size: 14px;
         line-height: 1.5;
     }}
-    .box h3 {{ margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; color: #2563eb; }}
+    .box h3 {{
+        margin: 0 0 8px 0; font-size: 13px;
+        text-transform: uppercase; color: #2563eb;
+    }}
     table.breakdown {{
         width: 100%;
         border-collapse: collapse;
@@ -97,8 +146,13 @@ def generate_avis_echeance_html(
         padding: 12px 14px;
         border-bottom: 1px solid #e2e8f0;
     }}
-    table.breakdown th {{ background: #f1f5f9; text-align: left; font-size: 14px; }}
-    table.breakdown tr.total td {{ font-weight: 700; font-size: 16px; color: #1e3a8a; border-top: 2px solid #2563eb; }}
+    table.breakdown th {{
+        background: #f1f5f9; text-align: left; font-size: 14px;
+    }}
+    table.breakdown tr.total td {{
+        font-weight: 700; font-size: 16px; color: #1e3a8a;
+        border-top: 2px solid #2563eb;
+    }}
     .bank-details {{
         background: #eff6ff;
         border: 1px solid #bfdbfe;
@@ -121,15 +175,20 @@ def generate_avis_echeance_html(
 </head>
 <body>
 
-<div class="no-print" style="max-width: 720px; margin: 0 auto 10px auto; text-align: right;">
-    <button class="btn-print" onclick="window.print()">🖨️ Imprimer / Télécharger en PDF</button>
+<div class="no-print"
+     style="max-width: 720px; margin: 0 auto 10px auto; text-align: right;">
+    <button class="btn-print" onclick="window.print()">
+        🖨️ Imprimer / Télécharger en PDF
+    </button>
 </div>
 
 <div class="card">
     <div class="header">
         <div>
             <h1>AVIS D'ÉCHÉANCE / APPEL DE LOYER</h1>
-            <div style="color: #64748b; font-size: 14px; margin-top: 4px;">Période : <strong>{period_str}</strong></div>
+            <div style="color: #64748b; font-size: 14px; margin-top: 4px;">
+                Période : <strong>{period_str}</strong>
+            </div>
         </div>
         <div style="text-align: right; font-size: 13px; color: #64748b;">
             Date d'échéance : <strong>{due_date}</strong>
@@ -139,16 +198,16 @@ def generate_avis_echeance_html(
     <div class="grid-2">
         <div class="box">
             <h3>Bailleur</h3>
-            <strong>{sci_info.get('name', 'SCI')}</strong><br>
-            {sci_info.get('address', '')}<br>
-            {sci_info.get('postal_code', '')} {sci_info.get('city', '')}<br>
-            Email : {sci_info.get('manager_email', '')}
+            <strong>{sci_name}</strong><br>
+            {sci_info.get("address", "")}<br>
+            {sci_info.get("postal_code", "")} {sci_info.get("city", "")}<br>
+            Email : {sci_info.get("manager_email", "")}
         </div>
         <div class="box">
             <h3>Locataire</h3>
-            <strong>{tenant.get('first_name')} {tenant.get('last_name').upper()}</strong><br>
-            {property_info.get('address', '')}<br>
-            {property_info.get('postal_code', '')} {property_info.get('city', '')}
+            <strong>{t_first} {t_last_upper}</strong><br>
+            {p_addr}<br>
+            {p_zip} {p_city}
         </div>
     </div>
 
@@ -170,21 +229,24 @@ def generate_avis_echeance_html(
             </tr>
             <tr class="total">
                 <td>TOTAL À RÉGLER AVANT LE {due_date}</td>
-                <td style="text-align: right; color: #2563eb;">{total:.2f} €</td>
+                <td style="text-align: right; color: #2563eb;">
+                    {total:.2f} €
+                </td>
             </tr>
         </tbody>
     </table>
 
     <div class="bank-details">
-        <strong>Coordonnées bancaires pour le règlement par virement :</strong><br>
-        Bénéficiaire : <strong>{sci_info.get('name', 'SCI')}</strong><br>
-        IBAN : <code>{sci_info.get('iban') or 'À renseigner dans les Paramètres'}</code><br>
-        BIC : <code>{sci_info.get('bic') or ''}</code><br>
-        Motif : <em>Loyer {period_str} - {tenant.get('last_name')}</em>
+        <strong>Coordonnées bancaires pour virement :</strong><br>
+        Bénéficiaire : <strong>{sci_name}</strong><br>
+        IBAN : <code>{iban_val}</code><br>
+        BIC : <code>{bic_val}</code><br>
+        Motif : <em>Loyer {period_str} - {tenant.get("last_name")}</em>
     </div>
 
     <p style="font-size: 12px; color: #94a3b8; margin-top: 30px;">
-        <em>Ce document constitue un appel de loyer et ne vaut pas quittance. La quittance vous sera délivrée dès réception de votre règlement.</em>
+        <em>Ce document constitue un appel de loyer et ne vaut pas quittance.
+        La quittance vous sera délivrée dès réception de votre règlement.</em>
     </p>
 </div>
 </body>
@@ -202,16 +264,37 @@ def generate_avis_echeance_pdf(
     due_date: str,
     rent_amount: Optional[float] = None,
     charges_amount: Optional[float] = None,
-    payment_id: Optional[int] = None
+    payment_id: Optional[int] = None,
 ) -> bytes:
-    """
-    Génère un document PDF vectoriel de haute qualité pour l'Avis d'Échéance / Appel de Loyer.
+    """Génère un document PDF pour l'Avis d'Échéance / Appel de Loyer.
+
+    Args:
+        sci_info: Coordonnées de la SCI.
+        tenant: Informations du locataire.
+        property_info: Informations du bien loué.
+        month: Numéro du mois (1-12).
+        year: Année fiscale (ex: 2026).
+        due_date: Date d'échéance.
+        rent_amount: Loyer principal si surchargé.
+        charges_amount: Provision sur charges si surchargée.
+        payment_id: Identifiant de l'échéance si rattachée.
+
+    Returns:
+        bytes: Données binaires du PDF généré.
     """
     month_str = MONTH_NAMES[month] if 1 <= month <= 12 else str(month)
     period_str = f"{month_str} {year}"
 
-    rent = float(rent_amount if rent_amount is not None else tenant.get("rent_amount", 0.0) or 0.0)
-    charges = float(charges_amount if charges_amount is not None else tenant.get("charges_provision", 0.0) or 0.0)
+    rent = float(
+        rent_amount
+        if rent_amount is not None
+        else tenant.get("rent_amount", 0.0) or 0.0
+    )
+    charges = float(
+        charges_amount
+        if charges_amount is not None
+        else tenant.get("charges_provision", 0.0) or 0.0
+    )
     total = rent + charges
 
     issue_date = date.today().strftime("%d/%m/%Y")
@@ -224,7 +307,7 @@ def generate_avis_echeance_pdf(
         rightMargin=36,
         leftMargin=36,
         topMargin=36,
-        bottomMargin=36
+        bottomMargin=36,
     )
 
     styles = getSampleStyleSheet()
@@ -237,198 +320,325 @@ def generate_avis_echeance_pdf(
     border_color = colors.HexColor("#cbd5e1")
 
     title_style = ParagraphStyle(
-        'DocTitle',
-        parent=styles['Heading1'],
+        "DocTitle",
+        parent=styles["Heading1"],
         fontSize=18,
         leading=22,
         textColor=primary_color,
-        fontName="Helvetica-Bold"
+        fontName="Helvetica-Bold",
     )
     ref_style = ParagraphStyle(
-        'DocRef',
-        parent=styles['Normal'],
+        "DocRef",
+        parent=styles["Normal"],
         fontSize=9.5,
         leading=13.5,
         textColor=text_muted,
-        alignment=2
+        alignment=2,
     )
     box_header_style = ParagraphStyle(
-        'BoxHeader',
-        parent=styles['Normal'],
+        "BoxHeader",
+        parent=styles["Normal"],
         fontSize=9.5,
         leading=12,
         textColor=secondary_color,
-        fontName="Helvetica-Bold"
+        fontName="Helvetica-Bold",
     )
     body_style = ParagraphStyle(
-        'Body',
-        parent=styles['Normal'],
+        "Body",
+        parent=styles["Normal"],
         fontSize=9,
         leading=13,
         textColor=text_dark,
-        fontName="Helvetica"
+        fontName="Helvetica",
     )
     body_bold = ParagraphStyle(
-        'BodyBold',
-        parent=styles['Normal'],
+        "BodyBold",
+        parent=styles["Normal"],
         fontSize=9.5,
         leading=13.5,
         textColor=text_dark,
-        fontName="Helvetica-Bold"
+        fontName="Helvetica-Bold",
     )
     callout_style = ParagraphStyle(
-        'Callout',
-        parent=styles['Normal'],
+        "Callout",
+        parent=styles["Normal"],
         fontSize=8.5,
         leading=12.5,
         textColor=colors.HexColor("#1e40af"),
-        fontName="Helvetica"
+        fontName="Helvetica",
     )
 
     story = []
 
     # 1. En-tête
-    ref_display = f"#{int(payment_id):05d}" if payment_id else f"ECH-{year}-{month:02d}"
+    ref_display = (
+        f"#{int(payment_id):05d}" if payment_id else f"ECH-{year}-{month:02d}"
+    )
+    title_html = (
+        "<b>AVIS D'ÉCHÉANCE / APPEL DE LOYER</b><br/>"
+        f"<font size='9.5' color='#64748b'>"
+        f"Période du terme : <b>{period_str}</b></font>"
+    )
+    ref_html = (
+        f"<b>Réf :</b> {ref_display}<br/>"
+        f"<b>Date d'émission :</b> {issue_date}<br/>"
+        f"<b>Date limite :</b> "
+        f"<font color='#b91c1c'><b>{due_date_str}</b></font>"
+    )
     header_data = [
         [
-            Paragraph(f"<b>AVIS D'ÉCHÉANCE / APPEL DE LOYER</b><br/><font size='9.5' color='#64748b'>Période du terme : <b>{period_str}</b></font>", title_style),
-            Paragraph(f"<b>Réf :</b> {ref_display}<br/><b>Date d'émission :</b> {issue_date}<br/><b>Date limite :</b> <font color='#b91c1c'><b>{due_date_str}</b></font>", ref_style)
+            Paragraph(title_html, title_style),
+            Paragraph(ref_html, ref_style),
         ]
     ]
     header_table = Table(header_data, colWidths=[310, 213])
-    header_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-    ]))
+    header_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
     story.append(header_table)
-    story.append(HRFlowable(width="100%", thickness=2, color=secondary_color, spaceBefore=2, spaceAfter=14))
+    story.append(
+        HRFlowable(
+            width="100%",
+            thickness=2,
+            color=secondary_color,
+            spaceBefore=2,
+            spaceAfter=14,
+        )
+    )
 
     # 2. Parties (Bailleur & Locataire)
     sci_name = sci_info.get("name", "Ma SCI Immobilière")
-    siren = f"SIREN : {sci_info.get('siren')}<br/>" if sci_info.get('siren') else ""
-    manager = f"Gérant : {sci_info.get('manager_name')}<br/>" if sci_info.get('manager_name') else ""
-    contact = f"Email : {sci_info.get('manager_email')}" if sci_info.get('manager_email') else ""
-    sci_addr = f"{sci_info.get('address', '')}<br/>{sci_info.get('postal_code', '')} {sci_info.get('city', '')}".strip()
+    siren = (
+        f"SIREN : {sci_info.get('siren')}<br/>" if sci_info.get("siren") else ""
+    )
+    manager = (
+        f"Gérant : {sci_info.get('manager_name')}<br/>"
+        if sci_info.get("manager_name")
+        else ""
+    )
+    contact = (
+        f"Email : {sci_info.get('manager_email')}"
+        if sci_info.get("manager_email")
+        else ""
+    )
+    sci_addr = (
+        f"{sci_info.get('address', '')}<br/>"
+        f"{sci_info.get('postal_code', '')} {sci_info.get('city', '')}"
+    ).strip()
 
     t_first = tenant.get("first_name", "")
     t_last = (tenant.get("last_name") or "").upper()
     p_name = property_info.get("name", "")
     p_addr = property_info.get("address", "")
-    p_cp_city = f"{property_info.get('postal_code', '')} {property_info.get('city', '')}".strip()
+    p_cp_city = (
+        f"{property_info.get('postal_code', '')} "
+        f"{property_info.get('city', '')}"
+    ).strip()
 
-    bailleur_html = f"<b>{sci_name}</b><br/>{siren}{sci_addr}<br/>{manager}{contact}"
-    locataire_html = f"<b>{t_first} {t_last}</b><br/>Logement loué : <b>{p_name}</b><br/>{p_addr}<br/>{p_cp_city}"
+    bailleur_html = (
+        f"<b>{sci_name}</b><br/>{siren}{sci_addr}<br/>{manager}{contact}"
+    )
+    locataire_html = (
+        f"<b>{t_first} {t_last}</b><br/>"
+        f"Logement loué : <b>{p_name}</b><br/>"
+        f"{p_addr}<br/>{p_cp_city}"
+    )
 
     parties_data = [
         [
             Paragraph("BAILLEUR (CRÉANCIER)", box_header_style),
-            Paragraph("LOCATAIRE (DÉBITEUR)", box_header_style)
+            Paragraph("LOCATAIRE (DÉBITEUR)", box_header_style),
         ],
         [
             Paragraph(bailleur_html, body_style),
-            Paragraph(locataire_html, body_style)
-        ]
+            Paragraph(locataire_html, body_style),
+        ],
     ]
     parties_table = Table(parties_data, colWidths=[255, 268])
-    parties_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('BOX', (0,0), (0,1), 1, border_color),
-        ('BOX', (1,0), (1,1), 1, border_color),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('LEFTPADDING', (0,0), (-1,-1), 10),
-        ('RIGHTPADDING', (0,0), (-1,-1), 10),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-    ]))
+    parties_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), bg_light),
+                ("BOX", (0, 0), (0, 1), 1, border_color),
+                ("BOX", (1, 0), (1, 1), 1, border_color),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
     story.append(parties_table)
     story.append(Spacer(1, 14))
 
     # 3. Tableau de ventilation
     table_data = [
-        [Paragraph("<b>Désignation du terme</b>", body_style), Paragraph("<b>Montant (€)</b>", ParagraphStyle('TR', parent=body_style, alignment=2))],
-        [Paragraph(f"Loyer mensuel principal ({period_str})", body_style), Paragraph(f"{rent:,.2f} €", ParagraphStyle('TR', parent=body_style, alignment=2))],
-        [Paragraph(f"Provision mensuelle sur charges locatives ({period_str})", body_style), Paragraph(f"{charges:,.2f} €", ParagraphStyle('TR', parent=body_style, alignment=2))],
-        [Paragraph("<b>Total exigible pour la période</b>", body_bold), Paragraph(f"<b>{total:,.2f} €</b>", ParagraphStyle('TRB', parent=body_bold, alignment=2))],
-        [Paragraph(f"<b>NET À RÉGLER AVANT LE {due_date_str}</b>", body_bold), Paragraph(f"<b>{total:,.2f} €</b>", ParagraphStyle('TRB2', parent=body_bold, alignment=2, textColor=secondary_color))]
+        [
+            Paragraph("<b>Désignation du terme</b>", body_style),
+            Paragraph(
+                "<b>Montant (€)</b>",
+                ParagraphStyle("TR", parent=body_style, alignment=2),
+            ),
+        ],
+        [
+            Paragraph(f"Loyer mensuel principal ({period_str})", body_style),
+            Paragraph(
+                f"{rent:,.2f} €",
+                ParagraphStyle("TR", parent=body_style, alignment=2),
+            ),
+        ],
+        [
+            Paragraph(
+                f"Provision mensuelle sur charges locatives ({period_str})",
+                body_style,
+            ),
+            Paragraph(
+                f"{charges:,.2f} €",
+                ParagraphStyle("TR", parent=body_style, alignment=2),
+            ),
+        ],
+        [
+            Paragraph("<b>Total exigible pour la période</b>", body_bold),
+            Paragraph(
+                f"<b>{total:,.2f} €</b>",
+                ParagraphStyle("TRB", parent=body_bold, alignment=2),
+            ),
+        ],
+        [
+            Paragraph(
+                f"<b>NET À RÉGLER AVANT LE {due_date_str}</b>", body_bold
+            ),
+            Paragraph(
+                f"<b>{total:,.2f} €</b>",
+                ParagraphStyle(
+                    "TRB2",
+                    parent=body_bold,
+                    alignment=2,
+                    textColor=secondary_color,
+                ),
+            ),
+        ],
     ]
     breakdown_table = Table(table_data, colWidths=[380, 143])
-    breakdown_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f1f5f9")),
-        ('LINEBELOW', (0,0), (-1,0), 1.5, primary_color),
-        ('LINEBELOW', (0,1), (-1,-2), 0.5, border_color),
-        ('LINEBELOW', (0,-2), (-1,-2), 1.5, primary_color),
-        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor("#eff6ff")),
-        ('LINEBELOW', (0,-1), (-1,-1), 1.5, secondary_color),
-        ('TOPPADDING', (0,0), (-1,-1), 7),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 7),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-    ]))
+    breakdown_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.5, primary_color),
+                ("LINEBELOW", (0, 1), (-1, -2), 0.5, border_color),
+                ("LINEBELOW", (0, -2), (-1, -2), 1.5, primary_color),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#eff6ff")),
+                ("LINEBELOW", (0, -1), (-1, -1), 1.5, secondary_color),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
     story.append(breakdown_table)
     story.append(Spacer(1, 14))
 
     # 4. Coordonnées bancaires pour le règlement
-    iban_val = sci_info.get('iban') or 'À renseigner dans les Paramètres'
-    bic_val = sci_info.get('bic') or ''
+    iban_val = sci_info.get("iban") or "À renseigner dans les Paramètres"
+    bic_val = sci_info.get("bic") or ""
     bank_html = (
-        f"<b>COORDONNÉES BANCAIRES POUR LE RÈGLEMENT PAR VIREMENT :</b><br/>"
+        "<b>COORDONNÉES BANCAIRES POUR LE RÈGLEMENT PAR VIREMENT :</b><br/>"
         f"Bénéficiaire : <b>{sci_name}</b><br/>"
-        f"IBAN : <b>{iban_val}</b> &nbsp;&nbsp;&nbsp; BIC : <b>{bic_val}</b><br/>"
-        f"Motif obligatoire du virement : <em>Loyer {period_str} - {t_last}</em>"
+        f"IBAN : <b>{iban_val}</b> &nbsp;&nbsp;&nbsp; "
+        f"BIC : <b>{bic_val}</b><br/>"
+        f"Motif obligatoire du virement : "
+        f"<em>Loyer {period_str} - {t_last}</em>"
     )
     bank_data = [[Paragraph(bank_html, body_style)]]
     bank_table = Table(bank_data, colWidths=[523])
-    bank_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f0fdf4")),
-        ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#86efac")),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('LEFTPADDING', (0,0), (-1,-1), 10),
-        ('RIGHTPADDING', (0,0), (-1,-1), 10),
-    ]))
+    bank_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f0fdf4")),
+                ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#86efac")),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
     story.append(bank_table)
     story.append(Spacer(1, 14))
 
     # 5. Avertissement légal
     legal_text = (
-        "<b>Important :</b> Ce document constitue un <b>avis d'échéance valant appel de loyer</b> et ne vaut en aucun cas quittance de paiement. "
-        "Conformément à l'article 21 de la loi n° 89-462 du 6 juillet 1989, une quittance de loyer vous sera délivrée sans frais dès parfait encaissement de votre règlement."
+        "<b>Important :</b> Ce document constitue un <b>avis d'échéance "
+        "valant appel de loyer</b> et ne vaut en aucun cas quittance de "
+        "paiement. Conformément à l'article 21 de la loi n° 89-462 du "
+        "6 juillet 1989, une quittance de loyer vous sera délivrée sans "
+        "frais dès parfait encaissement de votre règlement."
     )
     callout_data = [[Paragraph(legal_text, callout_style)]]
     callout_table = Table(callout_data, colWidths=[523])
-    callout_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#eff6ff")),
-        ('LINELEFT', (0,0), (0,0), 3.5, secondary_color),
-        ('TOPPADDING', (0,0), (-1,-1), 7),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 7),
-        ('LEFTPADDING', (0,0), (-1,-1), 10),
-        ('RIGHTPADDING', (0,0), (-1,-1), 10),
-    ]))
+    callout_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
+                ("LINELEFT", (0, 0), (0, 0), 3.5, secondary_color),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
     story.append(callout_table)
     story.append(Spacer(1, 14))
 
     # 6. Signatures & Mentions
     sign_city = sci_info.get("city") or property_info.get("city") or "Paris"
+    footer_text = (
+        "<em>Document établi et transmis par le bailleur. "
+        "À conserver par le locataire à titre de justificatif "
+        "d'appel de loyer.</em>"
+    )
+    sign_text = (
+        f"Fait à {sign_city}, le {issue_date}<br/>"
+        "<b>Le Bailleur / La SCI</b>"
+    )
     footer_data = [
         [
             Paragraph(
-                "<em>Document établi et transmis par le bailleur. "
-                "À conserver par le locataire à titre de justificatif d'appel de loyer.</em>",
-                ParagraphStyle('FN', parent=styles['Normal'], fontSize=7.5, leading=10, textColor=colors.HexColor("#94a3b8"), fontName="Helvetica-Oblique")
+                footer_text,
+                ParagraphStyle(
+                    "FN",
+                    parent=styles["Normal"],
+                    fontSize=7.5,
+                    leading=10,
+                    textColor=colors.HexColor("#94a3b8"),
+                    fontName="Helvetica-Oblique",
+                ),
             ),
             Paragraph(
-                f"Fait à {sign_city}, le {issue_date}<br/><b>Le Bailleur / La SCI</b>",
-                ParagraphStyle('FS', parent=body_style, alignment=2)
-            )
+                sign_text,
+                ParagraphStyle("FS", parent=body_style, alignment=2),
+            ),
         ]
     ]
     footer_table = Table(footer_data, colWidths=[310, 213])
-    footer_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('LEFTPADDING', (0,0), (-1,-1), 4),
-        ('RIGHTPADDING', (0,0), (-1,-1), 4),
-    ]))
+    footer_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
     story.append(footer_table)
 
     doc.build(story)
@@ -444,34 +654,65 @@ def save_avis_echeance_to_ged(
     due_date: str,
     rent_amount: Optional[float] = None,
     charges_amount: Optional[float] = None,
-    payment_id: Optional[int] = None
+    payment_id: Optional[int] = None,
 ) -> Tuple[bool, str, Optional[int]]:
-    """
-    Génère l'Appel de loyer (Avis d'échéance) en PDF et l'enregistre / référence dans la GED
-    (table documents) rattachée au locataire et au bien immobilier.
-    Si payment_id est fourni, met à jour rent_payments.notice_document_id.
+    """Génère l'Appel de loyer en PDF et l'enregistre dans la GED.
 
-    Retourne (succès: bool, message: str, document_id: Optional[int]).
+    Met à jour rent_payments.notice_document_id si payment_id fourni.
+
+    Args:
+        sci_info: Coordonnées de la SCI.
+        tenant: Informations du locataire.
+        property_info: Informations du bien loué.
+        month: Mois concerné (1-12).
+        year: Année concernée.
+        due_date: Date d'échéance.
+        rent_amount: Montant du loyer principal si surchargé.
+        charges_amount: Montant des charges si surchargé.
+        payment_id: Identifiant de l'échéance si rattachée.
+
+    Returns:
+        Tuple[bool, str, Optional[int]]: (succès, message, id document GED).
     """
     try:
         pdf_bytes = generate_avis_echeance_pdf(
-            sci_info, tenant, property_info, month, year, due_date,
-            rent_amount=rent_amount, charges_amount=charges_amount, payment_id=payment_id
+            sci_info,
+            tenant,
+            property_info,
+            month,
+            year,
+            due_date,
+            rent_amount=rent_amount,
+            charges_amount=charges_amount,
+            payment_id=payment_id,
         )
         file_size = len(pdf_bytes)
 
         month_str = MONTH_NAMES[month] if 1 <= month <= 12 else str(month)
-        t_last = (tenant.get("last_name") or "Locataire").strip().replace(" ", "_")
+        t_last = (
+            (tenant.get("last_name") or "Locataire").strip().replace(" ", "_")
+        )
         filename = f"Appel_Loyer_{t_last}_{year}_{month:02d}.pdf"
 
-        rent = float(rent_amount if rent_amount is not None else tenant.get("rent_amount", 0.0) or 0.0)
-        charges = float(charges_amount if charges_amount is not None else tenant.get("charges_provision", 0.0) or 0.0)
+        rent = float(
+            rent_amount
+            if rent_amount is not None
+            else tenant.get("rent_amount", 0.0) or 0.0
+        )
+        charges = float(
+            charges_amount
+            if charges_amount is not None
+            else tenant.get("charges_provision", 0.0) or 0.0
+        )
         total = rent + charges
 
         # Stockage dans le coffre-fort numérique GED (Cloudinary)
         public_id, secure_url, _ = storage.upload_file(pdf_bytes, filename)
 
-        notes_str = f"Avis d'échéance / Appel de loyer {month_str} {year} - {total:.2f} € (Terme {month:02d}/{year})"
+        notes_str = (
+            f"Avis d'échéance / Appel de loyer {month_str} {year} - "
+            f"{total:.2f} € (Terme {month:02d}/{year})"
+        )
 
         tenant_id = tenant.get("id")
         property_id = property_info.get("id") or tenant.get("property_id")
@@ -479,12 +720,15 @@ def save_avis_echeance_to_ged(
         category_name = "Appel de loyer & Avis d'échéance"
 
         # Vérifier si un document pour ce terme existe déjà
-        existing_row = query_one("""
+        existing_row = query_one(
+            """
             SELECT id, cloudinary_public_id FROM documents
             WHERE category = ?
               AND tenant_id = ?
               AND notes LIKE ?;
-        """, [category_name, tenant_id, f"%Terme {month:02d}/{year}%"])
+        """,
+            [category_name, tenant_id, f"%Terme {month:02d}/{year}%"],
+        )
 
         if existing_row:
             final_doc_id = existing_row["id"]
@@ -495,13 +739,25 @@ def save_avis_echeance_to_ged(
                 except Exception:
                     pass
 
-            execute_write("""
+            execute_write(
+                """
                 UPDATE documents
-                SET filename = ?, file_path = ?, cloudinary_public_id = ?, file_size = ?, notes = ?, uploaded_at = CURRENT_TIMESTAMP
+                SET filename = ?, file_path = ?, cloudinary_public_id = ?,
+                    file_size = ?, notes = ?, uploaded_at = CURRENT_TIMESTAMP
                 WHERE id = ?;
-            """, [filename, secure_url, public_id, file_size, notes_str, final_doc_id])
+            """,
+                [
+                    filename,
+                    secure_url,
+                    public_id,
+                    file_size,
+                    notes_str,
+                    final_doc_id,
+                ],
+            )
         else:
-            final_doc_id = execute_write("""
+            final_doc_id = execute_write(
+                """
                 INSERT INTO documents (
                     category, entity_type, entity_id, property_id, tenant_id,
                     filename, file_path, cloudinary_public_id, file_size, notes
@@ -509,19 +765,49 @@ def save_avis_echeance_to_ged(
                     ?, 'tenant', ?, ?, ?,
                     ?, ?, ?, ?, ?
                 );
-            """, [category_name, tenant_id, property_id, tenant_id, filename, secure_url, public_id, file_size, notes_str])
+            """,
+                [
+                    category_name,
+                    tenant_id,
+                    property_id,
+                    tenant_id,
+                    filename,
+                    secure_url,
+                    public_id,
+                    file_size,
+                    notes_str,
+                ],
+            )
 
         # Associer notice_document_id sur rent_payments si payment_id fourni
         if payment_id:
             try:
-                execute_write("UPDATE rent_payments SET notice_document_id = ? WHERE id = ?;", [final_doc_id, payment_id])
+                execute_write(
+                    "UPDATE rent_payments SET notice_document_id = ? "
+                    "WHERE id = ?;",
+                    [final_doc_id, payment_id],
+                )
             except Exception:
                 pass
 
-        return True, f"Appel de loyer PDF enregistré et classé dans la GED sous la référence #{final_doc_id}.", final_doc_id
+        return (
+            True,
+            (
+                "Appel de loyer PDF enregistré et classé dans la GED sous la "
+                f"référence #{final_doc_id}."
+            ),
+            final_doc_id,
+        )
 
     except Exception as e:
-        return False, f"Erreur lors de la génération / archivage de l'appel de loyer : {str(e)}", None
+        return (
+            False,
+            (
+                "Erreur lors de la génération / archivage de l'appel "
+                f"de loyer : {str(e)}"
+            ),
+            None,
+        )
 
 
 # 2. RELANCE AMIABLE D'IMPAYE (J+7)
@@ -529,21 +815,69 @@ def generate_relance_amiable_html(
     sci_info: Dict[str, Any],
     tenant: Dict[str, Any],
     property_info: Dict[str, Any],
-    payment_record: Dict[str, Any]
+    payment_record: Dict[str, Any],
 ) -> str:
-    period_str = f"{MONTH_NAMES[payment_record.get('period_month', 1)]} {payment_record.get('period_year', 2026)}"
-    balance = float(payment_record.get("total_due", 0.0)) - float(payment_record.get("amount_paid", 0.0))
+    """Génère la lettre de relance amiable d'impayé au format HTML.
+
+    Args:
+        sci_info: Coordonnées de la SCI.
+        tenant: Informations du locataire.
+        property_info: Informations du bien immobilier.
+        payment_record: Enregistrement de l'échéance de loyer.
+
+    Returns:
+        str: Code HTML de la lettre de relance amiable.
+    """
+    p_month = payment_record.get("period_month", 1)
+    p_year = payment_record.get("period_year", 2026)
+    period_str = f"{MONTH_NAMES[p_month]} {p_year}"
+    balance = float(payment_record.get("total_due", 0.0)) - float(
+        payment_record.get("amount_paid", 0.0)
+    )
+    t_first = tenant.get("first_name", "")
+    t_last = (tenant.get("last_name") or "").upper()
+    sci_name = sci_info.get("name", "SCI")
+    prop_addr = property_info.get("address", "")
+    due_date = payment_record.get("due_date", "")
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Relance loyer impayé - {tenant.get('last_name')}</title>
+<title>Relance loyer impayé - {tenant.get("last_name")}</title>
 <style>
-    body {{ font-family: -apple-system, sans-serif; padding: 40px; background: #f8fafc; color: #1e293b; line-height: 1.6; }}
-    .card {{ max-width: 700px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; border: 1px solid #e2e8f0; }}
-    .alert-banner {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; color: #92400e; font-weight: 600; }}
-    .btn-print {{ background-color: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }}
+    body {{
+        font-family: -apple-system, sans-serif;
+        padding: 40px;
+        background: #f8fafc;
+        color: #1e293b;
+        line-height: 1.6;
+    }}
+    .card {{
+        max-width: 700px;
+        margin: 0 auto;
+        background: white;
+        padding: 40px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+    }}
+    .alert-banner {{
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+        color: #92400e;
+        font-weight: 600;
+    }}
+    .btn-print {{
+        background-color: #2563eb;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+    }}
 </style>
 </head>
 <body>
@@ -551,16 +885,18 @@ def generate_relance_amiable_html(
     <button class="btn-print" onclick="window.print()">🖨️ Imprimer</button>
 </div>
 <div class="card">
-    <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+    <div style="display: flex; justify-content: space-between;
+                margin-bottom: 30px;">
         <div>
-            <strong>{sci_info.get('name', 'SCI')}</strong><br>
-            {sci_info.get('address', '')}<br>
-            {sci_info.get('postal_code', '')} {sci_info.get('city', '')}
+            <strong>{sci_name}</strong><br>
+            {sci_info.get("address", "")}<br>
+            {sci_info.get("postal_code", "")} {sci_info.get("city", "")}
         </div>
         <div style="text-align: right;">
-            <strong>{tenant.get('first_name')} {tenant.get('last_name').upper()}</strong><br>
-            {property_info.get('address', '')}<br>
-            {property_info.get('postal_code', '')} {property_info.get('city', '')}
+            <strong>{t_first} {t_last}</strong><br>
+            {prop_addr}<br>
+            {property_info.get("postal_code", "")}
+            {property_info.get("city", "")}
         </div>
     </div>
 
@@ -570,115 +906,200 @@ def generate_relance_amiable_html(
 
     <p>Madame, Monsieur,</p>
     <p>
-        Sauf erreur ou omission de notre part, nous constatons que le loyer du terme de <strong>{period_str}</strong>
-        concernant votre logement situé au <strong>{property_info.get('address')}</strong> n'a pas été crédité sur notre compte bancaire à ce jour.
+        Sauf erreur ou omission de notre part, nous constatons que le loyer
+        du terme de <strong>{period_str}</strong> concernant votre logement
+        situé au <strong>{prop_addr}</strong> n'a pas été crédité
+        sur notre compte bancaire à ce jour.
     </p>
 
-    <div style="background: #f1f5f9; padding: 15px 20px; border-radius: 8px; margin: 20px 0;">
-        <strong>Montant restant dû : <span style="color: #dc2626; font-size: 18px;">{balance:.2f} €</span></strong><br>
-        Échéance initiale : {payment_record.get('due_date')}
+    <div style="background: #f1f5f9; padding: 15px 20px;
+                border-radius: 8px; margin: 20px 0;">
+        <strong>Montant restant dû :
+            <span style="color: #dc2626; font-size: 18px;">
+            {balance:.2f} €
+            </span>
+        </strong><br>
+        Échéance initiale : {due_date}
     </div>
 
     <p>
-        S'agissant très probablement d'un simple oubli ou d'un retard d'exécution bancaire indépendant de votre volonté,
-        nous vous remercions de bien vouloir régulariser votre situation dans les plus brefs délais par virement.
+        S'agissant très probablement d'un simple oubli ou d'un retard
+        d'exécution bancaire indépendant de votre volonté, nous vous
+        remercions de bien vouloir régulariser votre situation dans les plus
+        brefs délais par virement.
     </p>
 
-    <div style="background: #eff6ff; padding: 12px 16px; border-radius: 6px; font-size: 13px;">
-        IBAN SCI : <code>{sci_info.get('iban', '')}</code>
+    <div style="background: #eff6ff; padding: 12px 16px;
+                border-radius: 6px; font-size: 13px;">
+        IBAN SCI : <code>{sci_info.get("iban", "")}</code>
     </div>
 
-    <p>Si votre virement a été émis entre-temps, nous vous prions de ne pas tenir compte de ce rappel.</p>
+    <p>
+        Si votre virement a été émis entre-temps, nous vous prions de ne pas
+        tenir compte de ce rappel.
+    </p>
 
-    <p>Restant à votre disposition, nous vous prions d'agréer, Madame, Monsieur, nos salutations distinguées.</p>
+    <p>
+        Restant à votre disposition, nous vous prions d'agréer, Madame,
+        Monsieur, nos salutations distinguées.
+    </p>
 
     <div style="margin-top: 40px; text-align: right;">
-        <strong>Pour {sci_info.get('name', 'SCI')}</strong><br>La Gérance
+        <strong>Pour {sci_name}</strong><br>La Gérance
     </div>
 </div>
 </body>
 </html>
 """
     return html
+
 
 # 3. MISE EN DEMEURE FORMELLE (J+21 - LRAR)
 def generate_mise_en_demeure_html(
     sci_info: Dict[str, Any],
     tenant: Dict[str, Any],
     property_info: Dict[str, Any],
-    payment_record: Dict[str, Any]
+    payment_record: Dict[str, Any],
 ) -> str:
-    period_str = f"{MONTH_NAMES[payment_record.get('period_month', 1)]} {payment_record.get('period_year', 2026)}"
-    balance = float(payment_record.get("total_due", 0.0)) - float(payment_record.get("amount_paid", 0.0))
+    """Génère la lettre de mise en demeure de payer au format HTML.
+
+    Args:
+        sci_info: Coordonnées de la SCI.
+        tenant: Informations du locataire.
+        property_info: Informations du bien loué.
+        payment_record: Enregistrement de l'échéance de loyer.
+
+    Returns:
+        str: Code HTML de la mise en demeure.
+    """
+    p_month = payment_record.get("period_month", 1)
+    p_year = payment_record.get("period_year", 2026)
+    period_str = f"{MONTH_NAMES[p_month]} {p_year}"
+    balance = float(payment_record.get("total_due", 0.0)) - float(
+        payment_record.get("amount_paid", 0.0)
+    )
+    t_first = tenant.get("first_name", "")
+    t_last = (tenant.get("last_name") or "").upper()
+    sci_name = sci_info.get("name", "SCI")
+    prop_addr = property_info.get("address", "")
+    guarantor_str = tenant.get("guarantor_info") or "caution solidaire"
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Mise en demeure de payer - {tenant.get('last_name')}</title>
+<title>Mise en demeure de payer - {tenant.get("last_name")}</title>
 <style>
-    body {{ font-family: -apple-system, sans-serif; padding: 40px; background: #f8fafc; color: #1e293b; line-height: 1.6; }}
-    .card {{ max-width: 720px; margin: 0 auto; background: white; padding: 50px; border-radius: 8px; border: 1px solid #cbd5e1; }}
-    .badge-urgent {{ background: #fee2e2; color: #991b1b; padding: 8px 12px; border-radius: 4px; font-weight: 700; display: inline-block; margin-bottom: 20px; }}
-    .btn-print {{ background-color: #dc2626; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }}
+    body {{
+        font-family: -apple-system, sans-serif;
+        padding: 40px;
+        background: #f8fafc;
+        color: #1e293b;
+        line-height: 1.6;
+    }}
+    .card {{
+        max-width: 720px;
+        margin: 0 auto;
+        background: white;
+        padding: 50px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+    }}
+    .badge-urgent {{
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-weight: 700;
+        display: inline-block;
+        margin-bottom: 20px;
+    }}
+    .btn-print {{
+        background-color: #dc2626;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+    }}
 </style>
 </head>
 <body>
 <div style="max-width: 720px; margin: 0 auto 10px auto; text-align: right;">
-    <button class="btn-print" onclick="window.print()">🖨️ Imprimer LRAR</button>
+    <button class="btn-print" onclick="window.print()">
+        🖨️ Imprimer LRAR
+    </button>
 </div>
 <div class="card">
-    <div class="badge-urgent">LETTRE RECOMMANDÉE AVEC AVIS DE RÉCEPTION (LRAR)</div>
+    <div class="badge-urgent">
+        LETTRE RECOMMANDÉE AVEC AVIS DE RÉCEPTION (LRAR)
+    </div>
 
-    <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+    <div style="display: flex; justify-content: space-between;
+                margin-bottom: 30px;">
         <div>
-            <strong>{sci_info.get('name', 'SCI')}</strong><br>
-            {sci_info.get('address', '')}<br>
-            {sci_info.get('postal_code', '')} {sci_info.get('city', '')}
+            <strong>{sci_name}</strong><br>
+            {sci_info.get("address", "")}<br>
+            {sci_info.get("postal_code", "")} {sci_info.get("city", "")}
         </div>
         <div style="text-align: right;">
-            <strong>{tenant.get('first_name')} {tenant.get('last_name').upper()}</strong><br>
-            {property_info.get('address', '')}<br>
-            {property_info.get('postal_code', '')} {property_info.get('city', '')}
+            <strong>{t_first} {t_last}</strong><br>
+            {prop_addr}<br>
+            {property_info.get("postal_code", "")}
+            {property_info.get("city", "")}
         </div>
     </div>
 
     <div style="font-weight: 700; color: #991b1b; margin-bottom: 20px;">
-        OBJET : MISE EN DEMEURE DE PAYER SOUS HUITINE AVANT MISE EN JEU DE LA CLAUSE RÉSOLUTOIRE
+        OBJET : MISE EN DEMEURE DE PAYER SOUS HUITINE AVANT MISE EN JEU DE LA
+        CLAUSE RÉSOLUTOIRE
     </div>
 
     <p>Madame, Monsieur,</p>
     <p>
-        Malgré nos précédentes relances restées sans effet, nous constatons que vous n'avez toujours pas réglé la somme de
-        <strong>{balance:.2f} €</strong> au titre du loyer et des charges du mois de <strong>{period_str}</strong>,
-        pour le logement que vous louez au <strong>{property_info.get('address')}</strong>.
+        Malgré nos précédentes relances restées sans effet, nous constatons
+        que vous n'avez toujours pas réglé la somme de
+        <strong>{balance:.2f} €</strong> au titre du loyer et des charges
+        du mois de <strong>{period_str}</strong>, pour le logement que vous
+        louez au <strong>{prop_addr}</strong>.
     </p>
 
     <p>
-        Par la présente lettre valant <strong>MISE EN DEMEURE</strong>, nous vous sommons formellement de nous faire parvenir
-        le règlement intégral de cette somme de <strong>{balance:.2f} €</strong> dans un délai impératif de <strong>8 jours</strong>
-        à compter de la réception de ce courrier.
+        Par la présente lettre valant <strong>MISE EN DEMEURE</strong>, nous
+        vous sommons formellement de nous faire parvenir le règlement intégral
+        de cette somme de <strong>{balance:.2f} €</strong> dans un délai
+        impératif de <strong>8 jours</strong> à compter de la réception de ce
+        courrier.
     </p>
 
     <p>
         À défaut de règlement dans ce délai :
         <ul>
-            <li>Nous transmettrons le dossier à un Commissaire de Justice (Huissier) pour délivrance d'un commandement de payer.</li>
-            <li>La <strong>clause résolutoire</strong> inscrite à votre contrat de bail sera actionnée, entraînant la résiliation de plein droit de votre bail et l'engagement d'une procédure d'expulsion devant le juge des contentieux de la protection.</li>
-            <li>Votre garant ({tenant.get('guarantor_info') or 'caution solidaire'}) sera immédiatement appelé en garantie.</li>
+            <li>Nous transmettrons le dossier à un Commissaire de Justice
+            (Huissier) pour délivrance d'un commandement de payer.</li>
+            <li>La <strong>clause résolutoire</strong> inscrite à votre contrat
+            de bail sera actionnée, entraînant la résiliation de plein droit de
+            votre bail et l'engagement d'une procédure d'expulsion devant le
+            juge des contentieux de la protection.</li>
+            <li>Votre garant ({guarantor_str}) sera immédiatement appelé en
+            garantie.</li>
         </ul>
     </p>
 
-    <p>Nous espérons ne pas avoir à en arriver à de telles extrémités et comptons sur votre prompte régularisation.</p>
+    <p>
+        Nous espérons ne pas avoir à en arriver à de telles extrémités et
+        comptons sur votre prompte régularisation.
+    </p>
 
     <div style="margin-top: 40px; text-align: right;">
-        <strong>Le Gérant de la SCI {sci_info.get('name')}</strong>
+        <strong>Le Gérant de la SCI {sci_name}</strong>
     </div>
 </div>
 </body>
 </html>
 """
     return html
+
 
 # 4. PROCES-VERBAL D'ASSEMBLEE GENERALE ORDINAIRE (PV D'AGO)
 def generate_pv_ago_html(
@@ -690,77 +1111,153 @@ def generate_pv_ago_html(
     financial_expenses: float,
     rcai: float,
     is_tax: float,
-    net_result: float
+    net_result: float,
 ) -> str:
+    """Génère le Procès-Verbal d'Assemblée Générale Ordinaire au format HTML.
+
+    Args:
+        sci_info: Coordonnées et informations de la SCI.
+        fiscal_year: Année fiscale de l'exercice approuvé (ex: 2025).
+        gross_income: Montant total des revenus bruts d'exploitation.
+        operating_expenses: Charges d'exploitation déductibles.
+        amortizations: Dotations aux amortissements de l'exercice.
+        financial_expenses: Charges financières (intérêts d'emprunt).
+        rcai: Résultat courant avant impôt.
+        is_tax: Impôt sur les sociétés dû.
+        net_result: Résultat net comptable après impôt.
+
+    Returns:
+        str: Code HTML complet du procès-verbal d'AGO.
+    """
+    sci_name = sci_info.get("name", "SCI")
+    manager_str = sci_info.get("manager_name") or "la Gérance"
+    siren_str = sci_info.get("siren") or "En cours d'immatriculation"
+    addr_str = (
+        f"{sci_info.get('address', '')}, "
+        f"{sci_info.get('postal_code', '')} {sci_info.get('city', '')}"
+    )
+    result_kind = "Bénéfice" if net_result >= 0 else "Perte"
+
     html = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>PV Assemblée Générale Ordinaire {fiscal_year} - {sci_info.get('name')}</title>
+<title>PV Assemblée Générale Ordinaire {fiscal_year} - {sci_name}</title>
 <style>
-    body {{ font-family: -apple-system, Georgia, serif; padding: 40px; background: #f8fafc; color: #1e293b; line-height: 1.6; }}
-    .card {{ max-width: 760px; margin: 0 auto; background: white; padding: 50px; border-radius: 8px; border: 1px solid #cbd5e1; }}
-    h1 {{ font-size: 18px; text-align: center; text-transform: uppercase; border-bottom: 2px solid #1e3a8a; padding-bottom: 12px; }}
+    body {{
+        font-family: -apple-system, Georgia, serif;
+        padding: 40px;
+        background: #f8fafc;
+        color: #1e293b;
+        line-height: 1.6;
+    }}
+    .card {{
+        max-width: 760px;
+        margin: 0 auto;
+        background: white;
+        padding: 50px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+    }}
+    h1 {{
+        font-size: 18px;
+        text-align: center;
+        text-transform: uppercase;
+        border-bottom: 2px solid #1e3a8a;
+        padding-bottom: 12px;
+    }}
     h2 {{ font-size: 15px; margin-top: 25px; color: #1e3a8a; }}
-    .btn-print {{ background-color: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }}
+    .btn-print {{
+        background-color: #2563eb;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+    }}
 </style>
 </head>
 <body>
 <div style="max-width: 760px; margin: 0 auto 10px auto; text-align: right;">
-    <button class="btn-print" onclick="window.print()">🖨️ Imprimer le PV d'AGO</button>
+    <button class="btn-print" onclick="window.print()">
+        🖨️ Imprimer le PV d'AGO
+    </button>
 </div>
 <div class="card">
-    <div style="text-align: center; font-size: 13px; color: #64748b; margin-bottom: 15px;">
+    <div style="text-align: center; font-size: 13px; color: #64748b;
+                margin-bottom: 15px;">
         Société Civile Immobilière au capital social de 1 000 euros<br>
-        Siège social : {sci_info.get('address')}, {sci_info.get('postal_code')} {sci_info.get('city')}<br>
-        SIREN : {sci_info.get('siren') or 'En cours d\'immatriculation'}
+        Siège social : {addr_str}<br>
+        SIREN : {siren_str}
     </div>
 
-    <h1>PROCÈS-VERBAL DE L'ASSEMBLÉE GÉNÉRALE ORDINAIRE ANNUELLE<br>DU 30 JUIN {fiscal_year + 1}</h1>
+    <h1>PROCÈS-VERBAL DE L'ASSEMBLÉE GÉNÉRALE ORDINAIRE ANNUELLE<br>
+        DU 30 JUIN {fiscal_year + 1}</h1>
 
     <p>
-        L'an <strong>{fiscal_year + 1}</strong>, le 30 juin à 18h00, les associés de la société <strong>{sci_info.get('name')}</strong>
-        se sont réunis au siège social en Assemblée Générale Ordinaire, sous la présidence de <strong>{sci_info.get('manager_name') or 'la Gérance'}</strong>.
+        L'an <strong>{fiscal_year + 1}</strong>, le 30 juin à 18h00, les
+        associés de la société <strong>{sci_name}</strong> se sont réunis au
+        siège social en Assemblée Générale Ordinaire, sous la présidence de
+        <strong>{manager_str}</strong>.
     </p>
 
     <h2>ORDRE DU JOUR</h2>
     <ol>
-        <li>Rapport de gestion de la gérance sur l'exercice clos le 31 décembre {fiscal_year}.</li>
-        <li>Présentation et approbation des comptes annuels de l'exercice (Liasse IS 2065).</li>
+        <li>Rapport de gestion de la gérance sur l'exercice clos le 31
+            décembre {fiscal_year}.</li>
+        <li>Présentation et approbation des comptes annuels de l'exercice
+            (Liasse IS 2065).</li>
         <li>Quitus à la gérance.</li>
         <li>Affectation du résultat comptable de l'exercice.</li>
     </ol>
 
     <h2>PREMIÈRE RÉSOLUTION - APPROBATION DES COMPTES</h2>
-    <p>L'Assemblée Générale, après avoir pris connaissance du rapport de la gérance, approuve les comptes de l'exercice {fiscal_year} faisant ressortir les éléments comptables suivants :</p>
+    <p>
+        L'Assemblée Générale, après avoir pris connaissance du rapport de la
+        gérance, approuve les comptes de l'exercice {fiscal_year} faisant
+        ressortir les éléments comptables suivants :
+    </p>
     <ul>
-        <li>Produits d'exploitation (loyers nets) : <strong>{gross_income:,.2f} €</strong></li>
-        <li>Charges d'exploitation déductibles : <strong>{operating_expenses:,.2f} €</strong></li>
-        <li>Dotations aux amortissements (bâti & mobilier) : <strong>{amortizations:,.2f} €</strong></li>
-        <li>Charges financières (intérêts d'emprunts) : <strong>{financial_expenses:,.2f} €</strong></li>
-        <li>Résultat Courant Avant Impôt (RCAI) : <strong>{rcai:,.2f} €</strong></li>
-        <li>Impôt sur les Sociétés (IS) dû : <strong>{is_tax:,.2f} €</strong></li>
-        <li><strong>Résultat Net Comptable de l'exercice : {net_result:,.2f} €</strong> ({'Bénéfice' if net_result >= 0 else 'Perte'})</li>
+        <li>Produits d'exploitation (loyers nets) :
+            <strong>{gross_income:,.2f} €</strong></li>
+        <li>Charges d'exploitation déductibles :
+            <strong>{operating_expenses:,.2f} €</strong></li>
+        <li>Dotations aux amortissements (bâti & mobilier) :
+            <strong>{amortizations:,.2f} €</strong></li>
+        <li>Charges financières (intérêts d'emprunts) :
+            <strong>{financial_expenses:,.2f} €</strong></li>
+        <li>Résultat Courant Avant Impôt (RCAI) :
+            <strong>{rcai:,.2f} €</strong></li>
+        <li>Impôt sur les Sociétés (IS) dû :
+            <strong>{is_tax:,.2f} €</strong></li>
+        <li><strong>Résultat Net Comptable de l'exercice :
+            {net_result:,.2f} €</strong> ({result_kind})</li>
     </ul>
     <p><em>Cette résolution est adoptée à l'unanimité des associés.</em></p>
 
     <h2>DEUXIÈME RÉSOLUTION - QUITUS À LA GÉRANCE</h2>
-    <p>L'Assemblée Générale donne quitus entier et sans réserve au gérant pour l'accomplissement de son mandat au cours de l'exercice écoulé.</p>
+    <p>
+        L'Assemblée Générale donne quitus entier et sans réserve au gérant
+        pour l'accomplissement de son mandat au cours de l'exercice écoulé.
+    </p>
     <p><em>Cette résolution est adoptée à l'unanimité.</em></p>
 
     <h2>TROISIÈME RÉSOLUTION - AFFECTATION DU RÉSULTAT</h2>
     <p>
-        L'Assemblée Générale décide d'affecter le résultat net de l'exercice, s'élevant à <strong>{net_result:,.2f} €</strong>,
-        intégralement au compte de <strong>Report à nouveau</strong> de la société.
+        L'Assemblée Générale décide d'affecter le résultat net de l'exercice,
+        s'élevant à <strong>{net_result:,.2f} €</strong>, intégralement au
+        compte de <strong>Report à nouveau</strong> de la société.
     </p>
     <p><em>Cette résolution est adoptée à l'unanimité.</em></p>
 
     <p style="margin-top: 40px;">
         L'ordre du jour étant épuisé, la séance est levée à 19h00.<br>
-        De tout ce que dessus, il a été dressé le présent procès-verbal signé par l'ensemble des associés présents.
+        De tout ce que dessus, il a été dressé le présent procès-verbal signé
+        par l'ensemble des associés présents.
     </p>
 
-    <div style="display: flex; justify-content: space-between; margin-top: 60px;">
+    <div style="display: flex; justify-content: space-between;
+                margin-top: 60px;">
         <div>
             <strong>Pour la Gérance</strong><br><br><br>
             ____________________________

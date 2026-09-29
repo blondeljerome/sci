@@ -1,13 +1,17 @@
-"""
-Module de stockage centralisé pour la GED (Gestion Électronique des Documents).
+"""Module de stockage centralisé pour la GED.
+
 Utilise Cloudinary comme backend de stockage cloud persistant.
 """
+
 from __future__ import annotations
+
 import logging
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
 import cloudinary
-import cloudinary.uploader
 import cloudinary.api
+import cloudinary.uploader
+
 from config import configure_cloudinary, validate_file_upload
 
 logger = logging.getLogger("sci.storage")
@@ -22,9 +26,10 @@ def _ensure_configured() -> None:
         ok = configure_cloudinary()
         if not ok:
             raise RuntimeError(
-                "Cloudinary n'est pas configuré. "
-                "Veuillez définir CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY "
-                "et CLOUDINARY_API_SECRET dans vos secrets ou variables d'environnement."
+                "Cloudinary n'est pas configuré. Veuillez définir "
+                "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY et "
+                "CLOUDINARY_API_SECRET dans vos secrets ou variables "
+                "d'environnement."
             )
 
 
@@ -44,7 +49,7 @@ def upload_file(
         (public_id, secure_url, file_size_bytes)
 
     Raises:
-        ValueError: Si le fichier ne respecte pas les critères de format ou de taille.
+        ValueError: Si le fichier ne respecte pas les critères de format.
         RuntimeError: Si Cloudinary n'est pas configuré.
     """
     is_valid, err_msg = validate_file_upload(original_filename, file_bytes)
@@ -91,12 +96,20 @@ def delete_file(public_id: str) -> bool:
         try:
             res = cloudinary.uploader.destroy(public_id, resource_type=rt)
             if res.get("result") == "ok":
-                logger.info("Fichier Cloudinary supprimé avec succès: %s (type: %s)", public_id, rt)
+                logger.info(
+                    "Fichier Cloudinary supprimé avec succès: %s (type: %s)",
+                    public_id,
+                    rt,
+                )
                 return True
         except Exception as err:
-            logger.debug("Tentative suppression Cloudinary (%s) échouée: %s", rt, err)
+            logger.debug(
+                "Tentative suppression Cloudinary (%s) échouée: %s", rt, err
+            )
 
-    logger.warning("Échec de la suppression Cloudinary pour public_id=%s", public_id)
+    logger.warning(
+        "Échec de la suppression Cloudinary pour public_id=%s", public_id
+    )
     return False
 
 
@@ -116,6 +129,7 @@ def get_file_url(public_id: str, resource_type: str = "raw") -> Optional[str]:
 
     _ensure_configured()
     import cloudinary.utils
+
     url, _ = cloudinary.utils.cloudinary_url(
         public_id,
         resource_type=resource_type,
@@ -125,47 +139,66 @@ def get_file_url(public_id: str, resource_type: str = "raw") -> Optional[str]:
 
 
 def get_preview_url(public_id: str, original_url: str = "") -> str:
-    """
-    Retourne une URL Cloudinary optimisée pour l'ouverture / prévisualisation dans le navigateur.
-    Pour les PDF, génère une URL de rendu PNG haute résolution sur Cloudinary,
-    ce qui permet l'ouverture immédiate sans blocage ACL / 401 CDN.
+    """Retourne une URL Cloudinary optimisée pour la prévisualisation.
+
+    Pour les PDF, génère une URL PNG (page 1) pour affichage direct
+    sans blocage ACL / 401 CDN.
+
+    Args:
+        public_id: L'identifiant Cloudinary du fichier.
+        original_url: URL de fallback en cas d'erreur.
+
+    Returns:
+        URL HTTPS de prévisualisation ou l'originale si échec.
     """
     if not public_id:
         return original_url or ""
 
     _ensure_configured()
     import cloudinary.utils
+
     try:
-        # Conversion instantanée sur Cloudinary vers PNG (page 1) pour affichage web sans blocage
+        # Conversion instantanée sur Cloudinary vers PNG (page 1)
         preview_url, _ = cloudinary.utils.cloudinary_url(
-            public_id,
-            resource_type="image",
-            format="png",
-            secure=True
+            public_id, resource_type="image", format="png", secure=True
         )
         return preview_url
     except Exception:
         return original_url or ""
 
 
-def download_file_bytes(public_id: str, resource_type: str = "image") -> Optional[bytes]:
-    """
-    Télécharge le contenu binaire brut d'un document directement depuis Cloudinary (GED)
-    via l'API authentifiée. Contourne toute restriction CDN publique.
+def download_file_bytes(
+    public_id: str, resource_type: str = "image"
+) -> Optional[bytes]:
+    """Télécharge le contenu binaire brut d'un document Cloudinary.
+
+    Contourne toute restriction CDN publique via l'API signée.
+
+    Args:
+        public_id: L'identifiant Cloudinary du fichier.
+        resource_type: Type de ressource ("image", "raw", etc.).
+
+    Returns:
+        Contenu brut du fichier sous forme de bytes, ou None.
     """
     if not public_id:
         return None
 
     _ensure_configured()
+    import io
     import urllib.request
     import zipfile
-    import io
+
     import cloudinary.utils
 
     for rt in (resource_type, "image", "raw"):
         try:
-            zip_url = cloudinary.utils.download_zip_url(public_ids=[public_id], resource_type=rt)
-            req = urllib.request.Request(zip_url, headers={"User-Agent": "Mozilla/5.0"})
+            zip_url = cloudinary.utils.download_zip_url(
+                public_ids=[public_id], resource_type=rt
+            )
+            req = urllib.request.Request(
+                zip_url, headers={"User-Agent": "Mozilla/5.0"}
+            )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = resp.read()
                 z = zipfile.ZipFile(io.BytesIO(data))

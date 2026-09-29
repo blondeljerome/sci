@@ -7,7 +7,8 @@ Conforme au Google Python Style Guide.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
+
 from database import execute_batch, execute_write, query_one, query_rows
 from services.property_service import sync_property_status
 
@@ -77,12 +78,16 @@ def delete_tenant_and_rents(
     # Détacher sans supprimer les charges et documents
     stmts.append(
         (
-            "UPDATE property_expenses SET tenant_id = NULL WHERE tenant_id = ?;",
+            "UPDATE property_expenses SET tenant_id = NULL "
+            "WHERE tenant_id = ?;",
             [tenant_id],
         )
     )
     stmts.append(
-        ("UPDATE documents SET tenant_id = NULL WHERE tenant_id = ?;", [tenant_id])
+        (
+            "UPDATE documents SET tenant_id = NULL WHERE tenant_id = ?;",
+            [tenant_id],
+        )
     )
 
     # Supprimer le locataire

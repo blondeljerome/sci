@@ -9,17 +9,17 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import query_rows, query_one, execute_write
+from database import execute_write, query_one
 from services.property_service import (
     calculate_property_depreciation,
     sync_property_status,
 )
+from services.rent_service import generate_monthly_term
 from services.tenant_service import (
+    delete_tenant_and_rents,
     get_irl_indices_data,
     terminate_lease,
-    delete_tenant_and_rents,
 )
-from services.rent_service import generate_monthly_term, record_full_payment
 
 
 class TestPropertyService(unittest.TestCase):
@@ -82,24 +82,39 @@ class TestTenantAndRentServices(unittest.TestCase):
     def test_tenant_lifecycle_and_property_sync(self) -> None:
         """Tests creating a test tenant, terminating lease, and deleting."""
         # 1. Create a dummy property
-        prop_id = execute_write("""
+        prop_id = execute_write(
+            """
             INSERT INTO properties (
                 name, address, postal_code, city, acquisition_price, status
             ) VALUES (?, ?, ?, ?, ?, ?);
-        """, ["Test Lot Service", "Rue du Test", "75001", "Paris", 100000.0, "vacant"])
+        """,
+            [
+                "Test Lot Service",
+                "Rue du Test",
+                "75001",
+                "Paris",
+                100000.0,
+                "vacant",
+            ],
+        )
 
         try:
             # 2. Add an active tenant
-            tenant_id = execute_write("""
+            tenant_id = execute_write(
+                """
                 INSERT INTO tenants (
                     first_name, last_name, property_id, rent_amount,
                     charges_provision, is_active, lease_start
                 ) VALUES (?, ?, ?, ?, ?, ?, ?);
-            """, ["Albert", "Testeur", prop_id, 800.0, 50.0, 1, "2026-01-01"])
+            """,
+                ["Albert", "Testeur", prop_id, 800.0, 50.0, 1, "2026-01-01"],
+            )
 
             # Sync property status: should become 'loue'
             sync_property_status(prop_id)
-            prop = query_one("SELECT status FROM properties WHERE id = ?;", [prop_id])
+            prop = query_one(
+                "SELECT status FROM properties WHERE id = ?;", [prop_id]
+            )
             self.assertIsNotNone(prop)
             self.assertEqual(prop.get("status"), "loue")
 
@@ -108,11 +123,14 @@ class TestTenantAndRentServices(unittest.TestCase):
             self.assertGreaterEqual(created, 1)
 
             # Check rent payment row
-            payment = query_one("""
+            payment = query_one(
+                """
                 SELECT id, rent_amount, charges_amount, total_due, status
                 FROM rent_payments
                 WHERE tenant_id = ? AND period_month = 1 AND period_year = 2026;
-            """, [tenant_id])
+            """,
+                [tenant_id],
+            )
             self.assertIsNotNone(payment)
             self.assertEqual(payment.get("total_due"), 850.0)
             self.assertEqual(payment.get("status"), "en_attente")
@@ -129,7 +147,9 @@ class TestTenantAndRentServices(unittest.TestCase):
             self.assertEqual(prop_after_term.get("status"), "vacant")
 
             # 5. Delete tenant and associated rents
-            del_ok, del_count = delete_tenant_and_rents(tenant_id, delete_rents=True)
+            del_ok, del_count = delete_tenant_and_rents(
+                tenant_id, delete_rents=True
+            )
             self.assertTrue(del_ok)
             self.assertGreaterEqual(del_count, 1)
 
@@ -144,7 +164,9 @@ class TestTenantAndRentServices(unittest.TestCase):
             execute_write(
                 "DELETE FROM rent_payments WHERE property_id = ?;", [prop_id]
             )
-            execute_write("DELETE FROM tenants WHERE property_id = ?;", [prop_id])
+            execute_write(
+                "DELETE FROM tenants WHERE property_id = ?;", [prop_id]
+            )
             execute_write("DELETE FROM properties WHERE id = ?;", [prop_id])
 
 

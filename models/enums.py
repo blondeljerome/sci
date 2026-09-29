@@ -9,6 +9,7 @@ from enum import StrEnum
 
 class PropertyStatus(StrEnum):
     """Statuts d'occupation d'un bien immobilier."""
+
     VACANT = "vacant"
     LOUE = "loue"
     EN_TRAVAUX = "en_travaux"
@@ -16,6 +17,7 @@ class PropertyStatus(StrEnum):
 
 class PropertyType(StrEnum):
     """Typologies de biens gérés au patrimoine."""
+
     APPARTEMENT = "Appartement"
     MAISON = "Maison"
     PARKING = "Parking / Garage"
@@ -27,6 +29,7 @@ class PropertyType(StrEnum):
 
 class RentStatus(StrEnum):
     """Statuts d'une échéance de loyer."""
+
     EN_ATTENTE = "en_attente"
     PARTIEL = "partiel"
     PAYE = "paye"
@@ -36,12 +39,14 @@ class RentStatus(StrEnum):
 
 class PartnerAccountType(StrEnum):
     """Type d'opération sur un compte courant d'associé (CCA)."""
+
     APPORT = "apport"
     REMBOURSEMENT = "remboursement"
 
 
 class EntityType(StrEnum):
     """Type d'entité rattachée à un document GED."""
+
     SCI = "sci"
     PROPERTY = "property"
     TENANT = "tenant"
@@ -50,6 +55,7 @@ class EntityType(StrEnum):
 
 class DocumentCategory(StrEnum):
     """Catégories de classement pour la GED et le coffre-fort numérique."""
+
     BAIL_ETAT_DES_LIEUX = "Bail & État des lieux"
     ASSURANCE = "Attestation d'assurance habitation"
     DIAGNOSTIC = "Diagnostic technique (DPE, plomb, élec...)"
@@ -65,5 +71,6 @@ class DocumentCategory(StrEnum):
 
 class UserRole(StrEnum):
     """Rôles applicatifs des utilisateurs."""
+
     ADMIN = "admin"
     GESTIONNAIRE = "gestionnaire"

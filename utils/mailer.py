@@ -1,40 +1,50 @@
-"""
-Module d'envoi d'emails via SMTP (Quittances, Avis d'échéance, Relances).
+"""Module d'envoi d'emails via SMTP (Quittances, Avis d'échéance, Relances).
+
 Prend en charge TLS, pièces jointes HTML/PDF et messages personnalisés.
 """
+
 import smtplib
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-from typing import Tuple, Optional
+from typing import Any, Dict, Optional, Tuple, Union
+
 import streamlit as st
+
 from database import query_one
 
-def get_smtp_config() -> dict:
+
+def get_smtp_config() -> Dict[str, Any]:
+    """Récupère les paramètres SMTP depuis la base ou st.secrets.
+
+    Returns:
+        Dictionnaire contenant la configuration SMTP (server, port, user, etc.).
     """
-    Récupère les paramètres SMTP depuis :
-    1. La table sci_info en base de données
-    2. Streamlit Secrets (st.secrets)
-    """
-    config = {
+    config: Dict[str, Any] = {
         "server": "",
         "port": 587,
         "username": "",
         "password": "",
         "use_tls": True,
-        "sender_email": ""
+        "sender_email": "",
     }
 
     # 1. En base
     try:
-        sci = query_one("SELECT smtp_server, smtp_port, smtp_username, smtp_password, smtp_use_tls, smtp_sender_email, manager_email FROM sci_info WHERE id = 1;")
+        sci = query_one(
+            "SELECT smtp_server, smtp_port, smtp_username, smtp_password, "
+            "smtp_use_tls, smtp_sender_email, manager_email "
+            "FROM sci_info WHERE id = 1;"
+        )
         if sci:
             config["server"] = sci.get("smtp_server") or ""
             config["port"] = int(sci.get("smtp_port") or 587)
             config["username"] = sci.get("smtp_username") or ""
             config["password"] = sci.get("smtp_password") or ""
             config["use_tls"] = bool(sci.get("smtp_use_tls", 1))
-            config["sender_email"] = sci.get("smtp_sender_email") or sci.get("manager_email") or ""
+            config["sender_email"] = (
+                sci.get("smtp_sender_email") or sci.get("manager_email") or ""
+            )
     except Exception:
         pass
 
@@ -45,29 +55,48 @@ def get_smtp_config() -> dict:
             config["port"] = int(st.secrets.get("SMTP_PORT", 587))
             config["username"] = st.secrets.get("SMTP_USERNAME", "")
             config["password"] = st.secrets.get("SMTP_PASSWORD", "")
-            config["sender_email"] = st.secrets.get("SMTP_SENDER_EMAIL", config["sender_email"])
+            config["sender_email"] = st.secrets.get(
+                "SMTP_SENDER_EMAIL", config["sender_email"]
+            )
     except Exception:
         pass
 
     return config
+
 
 def send_email(
     to_email: str,
     subject: str,
     html_body: str,
     attachment_filename: Optional[str] = None,
-    attachment_content: Optional[str] = None
+    attachment_content: Optional[Union[str, bytes]] = None,
 ) -> Tuple[bool, str]:
-    """
-    Envoie un email HTML avec pièce jointe optionnelle.
-    Retourne (succès: bool, message: str).
+    """Envoie un email HTML avec pièce jointe optionnelle.
+
+    Args:
+        to_email: Adresse email du destinataire.
+        subject: Sujet du message.
+        html_body: Corps du message au format HTML.
+        attachment_filename: Nom du fichier joint (optionnel).
+        attachment_content: Contenu texte ou binaire du fichier joint.
+
+    Returns:
+        Tuple (succès: bool, message: str).
     """
     if not to_email or "@" not in to_email:
-        return False, "Adresse email du destinataire invalide ou non renseignée."
+        return (
+            False,
+            "Adresse email du destinataire invalide ou non renseignée.",
+        )
 
     config = get_smtp_config()
     if not config["server"] or not config["username"]:
-        return False, "Le serveur SMTP n'est pas configuré. Rendez-vous dans '⚙️ Paramètres > Configuration Email SMTP' pour renseigner vos identifiants."
+        return (
+            False,
+            "Le serveur SMTP n'est pas configuré. Rendez-vous dans '⚙️ "
+            "Paramètres > Configuration Email SMTP' pour renseigner vos "
+            "identifiants.",
+        )
 
     try:
         msg = MIMEMultipart("alternative")
@@ -81,16 +110,22 @@ def send_email(
 
         # Pièce jointe optionnelle (ex: quittance PDF ou HTML)
         if attachment_filename and attachment_content:
-            data_bytes = attachment_content if isinstance(attachment_content, (bytes, bytearray)) else attachment_content.encode("utf-8")
+            data_bytes = (
+                attachment_content
+                if isinstance(attachment_content, (bytes, bytearray))
+                else attachment_content.encode("utf-8")
+            )
             part_attach = MIMEApplication(data_bytes, Name=attachment_filename)
-            part_attach['Content-Disposition'] = f'attachment; filename="{attachment_filename}"'
+            part_attach["Content-Disposition"] = (
+                f'attachment; filename="{attachment_filename}"'
+            )
             msg.attach(part_attach)
 
         # Connexion SMTP
         server = smtplib.SMTP(config["server"], config["port"], timeout=15)
         if config["use_tls"]:
             server.starttls()
-        
+
         if config["password"]:
             server.login(config["username"], config["password"])
 

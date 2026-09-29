@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional
+
 from config import (
     DEFAULT_BUILDING_AMORT_YEARS,
     DEFAULT_FURNITURE_AMORT_YEARS,
@@ -105,7 +106,8 @@ def sync_property_status(property_id: Optional[int]) -> str:
     )
     active_count = active_count_row["c"] if active_count_row else 0
     new_status = (
-        PropertyStatus.LOUE.value if active_count > 0
+        PropertyStatus.LOUE.value
+        if active_count > 0
         else PropertyStatus.VACANT.value
     )
 
