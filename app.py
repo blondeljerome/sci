@@ -2,6 +2,7 @@
 Point d'entrée principal de l'application Streamlit de Gestion Immobilière SCI à l'IS.
 """
 import logging
+import streamlit as st
 from config import APP_TITLE, APP_ICON
 from database import init_db, query_one, get_connection_info
 
