@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from database import query_df, query_rows, query_one, execute_write
 from utils.formatters import format_currency
+from services.property_service import calculate_property_depreciation, get_properties_with_tenants
 
 def render_properties():
     st.markdown("## 🏢 Gestion du Patrimoine Immobilier (SCI à l'IS)")
@@ -14,15 +15,7 @@ def render_properties():
 
     # 1. LISTE DES BIENS
     with tab_list:
-        properties = query_rows("""
-            SELECT p.*, 
-                   t.first_name || ' ' || t.last_name as current_tenant,
-                   t.rent_amount as current_rent,
-                   t.charges_provision as current_charges
-            FROM properties p
-            LEFT JOIN tenants t ON p.id = t.property_id AND t.is_active = 1
-            ORDER BY p.id ASC;
-        """)
+        properties = get_properties_with_tenants()
 
         if not properties:
             st.info("Aucun bien n'a encore été enregistré. Cliquez sur l'onglet **'➕ Ajouter un Bien'** pour créer votre premier lot.")
@@ -54,24 +47,8 @@ def render_properties():
                     "en_travaux": "🟠 **En travaux**"
                 }.get(status, status)
 
-                # Calculs d'amortissement IS
-                acq_price = float(prop.get("acquisition_price", 0.0))
-                notary = float(prop.get("notary_fees", 0.0))
-                total_cost = acq_price + notary
-                land_pct = float(prop.get("land_share_pct", 15.0))
-                amort_years = max(1, int(prop.get("amortization_years", 25)))
-                
-                # Part terrain (non amortissable)
-                land_value = acq_price * (land_pct / 100.0)
-                # Bâti amortissable (prix hors terrain + frais d'acquisition)
-                building_amort_base = total_cost - land_value
-                annual_building_amort = building_amort_base / amort_years
-
-                # Meubles
-                furn_val = float(prop.get("furniture_value", 0.0))
-                furn_years = max(1, int(prop.get("furniture_years", 5)))
-                annual_furn_amort = furn_val / furn_years if furn_val > 0 else 0.0
-                total_annual_amort = annual_building_amort + annual_furn_amort
+                # Calculs d'amortissement IS via le service métier
+                depr = calculate_property_depreciation(prop)
 
                 with st.container():
                     st.markdown(f"### {prop.get('name', 'Sans titre')} &nbsp; {status_badge}")
@@ -90,16 +67,16 @@ def render_properties():
                         st.markdown(f"**Étage :** {prop.get('floor', 0)}{door_str}")
                         st.markdown(f"**Tantièmes copro :** {prop.get('tantiemes', 1000)} / 1000")
                     with c3:
-                        st.markdown(f"**Coût d'acquisition :** {format_currency(acq_price)}")
-                        st.caption(f"Frais de notaire : {format_currency(notary)}")
-                        st.markdown(f"**Terrain (non amorti) :** {format_currency(land_value)} ({land_pct:.0f}%)")
-                        st.markdown(f"**Bâti amortissable :** {format_currency(building_amort_base)}")
+                        st.markdown(f"**Coût d'acquisition :** {format_currency(depr['acq_price'])}")
+                        st.caption(f"Frais de notaire : {format_currency(depr['notary_fees'])}")
+                        st.markdown(f"**Terrain (non amorti) :** {format_currency(depr['land_value'])} ({depr['land_share_pct']:.0f}%)")
+                        st.markdown(f"**Bâti amortissable :** {format_currency(depr['building_amort_base'])}")
                     with c4:
                         st.markdown(f"**Amortissement Immeuble :**")
-                        st.markdown(f"**{format_currency(annual_building_amort)} / an** ({amort_years} ans)")
-                        if furn_val > 0:
-                            st.markdown(f"**Meubles :** +{format_currency(annual_furn_amort)} / an ({furn_years} ans)")
-                        st.success(f"📉 **Déduction IS totale :** **{format_currency(total_annual_amort)} / an**")
+                        st.markdown(f"**{format_currency(depr['annual_building_amort'])} / an** ({depr['amortization_years']} ans)")
+                        if depr["furniture_value"] > 0:
+                            st.markdown(f"**Meubles :** +{format_currency(depr['annual_furn_amort'])} / an ({depr['furniture_years']} ans)")
+                        st.success(f"📉 **Déduction IS totale :** **{format_currency(depr['total_annual_amort'])} / an**")
 
                     if prop.get("notes"):
                         st.caption(f"📝 Notes : {prop.get('notes')}")

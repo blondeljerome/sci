@@ -11,6 +11,7 @@ from utils.formatters import format_currency, format_percentage, get_month_name,
 from utils.quittance import generate_quittance_html, generate_quittance_pdf, save_quittance_to_ged
 from utils.legal_docs import generate_avis_echeance_html, generate_avis_echeance_pdf, save_avis_echeance_to_ged
 from utils.mailer import send_email
+from services.rent_service import generate_monthly_term, record_full_payment, get_monthly_payments
 
 def render_rents():
     st.markdown("## 💳 Gestion des Loyers, Appels & Quittances")
@@ -27,37 +28,7 @@ def render_rents():
         st.write("")
         # Bouton de génération automatique du terme avec archivage GED des appels de loyer
         if st.button("⚡ Générer les échéances & Appels de loyer (GED) pour les locataires actifs", type="primary"):
-            active_tenants = query_rows("SELECT * FROM tenants WHERE is_active = 1 AND property_id IS NOT NULL;")
-            sci_info = query_one("SELECT * FROM sci_info WHERE id = 1;") or {}
-            generated_count = 0
-            for t in active_tenants:
-                # Vérifier si l'échéance existe déjà
-                existing = query_one(
-                    "SELECT id FROM rent_payments WHERE tenant_id = ? AND period_month = ? AND period_year = ?;",
-                    [t["id"], selected_month, selected_year]
-                )
-                if not existing:
-                    rent = float(t.get("rent_amount", 0.0))
-                    charges = float(t.get("charges_provision", 0.0))
-                    total = rent + charges
-                    due_date = f"{selected_year:04d}-{selected_month:02d}-05"
-
-                    # 1. Création de l'échéance de loyer
-                    new_payment_id = execute_write("""
-                        INSERT INTO rent_payments (
-                            tenant_id, property_id, period_month, period_year,
-                            rent_amount, charges_amount, total_due, due_date, status
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'en_attente');
-                    """, [t["id"], t["property_id"], selected_month, selected_year, rent, charges, total, due_date])
-
-                    # 2. Génération automatique de l'Avis d'échéance PDF et archivage dans la GED
-                    p_info = query_one("SELECT * FROM properties WHERE id = ?;", [t["property_id"]]) or {}
-                    save_avis_echeance_to_ged(
-                        sci_info, t, p_info, selected_month, selected_year,
-                        due_date, rent, charges, new_payment_id
-                    )
-                    generated_count += 1
-
+            generated_count, _ = generate_monthly_term(selected_month, selected_year)
             if generated_count > 0:
                 st.success(f"{generated_count} échéance(s) et appel(s) de loyer PDF archivé(s) dans la GED pour {get_month_name(selected_month)} {selected_year} !")
             else:
@@ -66,21 +37,8 @@ def render_rents():
 
     st.markdown("---")
 
-    # Récupérer les paiements du mois sélectionné avec liens vers GED (documents: quittance et appel)
-    payments = query_rows("""
-        SELECT rp.*, 
-               t.first_name, t.last_name, t.email,
-               p.name as property_name, p.address as prop_address, p.city as prop_city, p.postal_code as prop_postal,
-               d.file_path as doc_file_path, d.filename as doc_filename, d.cloudinary_public_id as doc_public_id,
-               nd.file_path as notice_file_path, nd.filename as notice_filename, nd.cloudinary_public_id as notice_public_id
-        FROM rent_payments rp
-        JOIN tenants t ON rp.tenant_id = t.id
-        JOIN properties p ON rp.property_id = p.id
-        LEFT JOIN documents d ON rp.document_id = d.id
-        LEFT JOIN documents nd ON rp.notice_document_id = nd.id
-        WHERE rp.period_month = ? AND rp.period_year = ?
-        ORDER BY t.last_name ASC;
-    """, [selected_month, selected_year])
+    # Récupérer les paiements du mois sélectionné avec liens vers GED via le service
+    payments = get_monthly_payments(selected_month, selected_year)
 
     if not payments:
         st.info(f"Aucune échéance enregistrée pour **{get_month_name(selected_month)} {selected_year}**. Cliquez sur le bouton ci-dessus pour générer les loyers.")
@@ -152,21 +110,11 @@ def render_rents():
                     # Action rapide d'encaissement avec archivage automatique GED
                     if not is_paid:
                         if st.button("💰 Encaisser en totalité", key=f"quick_pay_{p['id']}", type="primary"):
-                            execute_write("""
-                                UPDATE rent_payments 
-                                SET amount_paid = total_due, payment_date = ?, status = 'paye'
-                                WHERE id = ?;
-                            """, [str(date.today()), p["id"]])
-                            # Génération et archivage automatique dans la GED
-                            sci_info = query_one("SELECT * FROM sci_info WHERE id = 1;") or {}
-                            tenant_info = {"id": p["tenant_id"], "first_name": p["first_name"], "last_name": p["last_name"], "email": p.get("email")}
-                            prop_info = {"id": p["property_id"], "name": p["property_name"], "address": p["prop_address"], "city": p["prop_city"], "postal_code": p["prop_postal"]}
-                            p_for_ged = dict(p)
-                            p_for_ged["amount_paid"] = p["total_due"]
-                            p_for_ged["payment_date"] = str(date.today())
-                            p_for_ged["status"] = "paye"
-                            ok_g, msg_g, _ = save_quittance_to_ged(p["id"], sci_info, tenant_info, prop_info, p_for_ged)
-                            st.success(f"Paiement enregistré ! {msg_g}")
+                            ok_g, msg_g = record_full_payment(p["id"])
+                            if ok_g:
+                                st.success(f"Paiement enregistré ! {msg_g}")
+                            else:
+                                st.error(f"Erreur d'encaissement : {msg_g}")
                             st.rerun()
                     else:
                         st.caption("✅ Paiement soldé")
