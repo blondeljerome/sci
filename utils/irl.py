@@ -3,6 +3,7 @@
 Récupération des indices officiels et calcul de révision légale de loyer.
 """
 
+import html
 import re
 import urllib.request
 from typing import Any, Dict, List, Tuple
@@ -205,15 +206,22 @@ def generate_irl_letter_html(
     diff = new_rent - old_rent
     pct = ((new_val - old_val) / old_val * 100.0) if old_val > 0 else 0.0
 
-    t_first = tenant.get("first_name", "")
-    t_last = tenant.get("last_name", "")
-    t_lease = tenant.get("lease_start", "")
+    t_first = html.escape(str(tenant.get("first_name", "")))
+    t_last = html.escape(str(tenant.get("last_name", "")))
+    t_lease = html.escape(str(tenant.get("lease_start", "")))
     charges = float(tenant.get("charges_provision", 0.0))
-    p_addr = property_info.get("address", "")
-    p_cp = property_info.get("postal_code", "")
-    p_city = property_info.get("city", "")
+    p_addr = html.escape(str(property_info.get("address", "")))
+    p_cp = html.escape(str(property_info.get("postal_code", "")))
+    p_city = html.escape(str(property_info.get("city", "")))
+    sci_name = html.escape(str(sci_info.get("name", "SCI")))
+    sci_addr = html.escape(str(sci_info.get("address", "")))
+    sci_cp = html.escape(str(sci_info.get("postal_code", "")))
+    sci_city = html.escape(str(sci_info.get("city", "")))
+    sci_phone = html.escape(str(sci_info.get("manager_phone", "")))
+    sci_email = html.escape(str(sci_info.get("manager_email", "")))
+    effective_date_esc = html.escape(str(effective_date))
 
-    html = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -322,11 +330,11 @@ def generate_irl_letter_html(
 <div class="letter-card">
     <div class="header-grid">
         <div class="sender">
-            <strong>{sci_info.get("name", "SCI")}</strong><br>
-            {sci_info.get("address", "")}<br>
-            {sci_info.get("postal_code", "")} {sci_info.get("city", "")}<br>
-            Tél : {sci_info.get("manager_phone", "")}<br>
-            Email : {sci_info.get("manager_email", "")}
+            <strong>{sci_name}</strong><br>
+            {sci_addr}<br>
+            {sci_cp} {sci_city}<br>
+            Tél : {sci_phone}<br>
+            Email : {sci_email}
         </div>
         <div class="recipient">
             <strong>{t_first} {t_last.upper()}</strong><br>
@@ -337,7 +345,7 @@ def generate_irl_letter_html(
 
     <div style="text-align: right; font-size: 13px; color: #64748b;
                 margin-bottom: 25px;">
-        Fait à {sci_info.get("city", "Nancy")}, le {effective_date}
+        Fait à {sci_city or "Nancy"}, le {effective_date_esc}
     </div>
 
     <div class="object">
@@ -398,7 +406,7 @@ def generate_irl_letter_html(
     salutations distinguées.</p>
 
     <div style="margin-top: 50px; text-align: right;">
-        <strong>Pour la société {sci_info.get("name", "SCI")}</strong><br>
+        <strong>Pour la société {sci_name}</strong><br>
         Le Gérant
     </div>
 </div>
@@ -406,4 +414,4 @@ def generate_irl_letter_html(
 </body>
 </html>
 """
-    return html
+    return html_content

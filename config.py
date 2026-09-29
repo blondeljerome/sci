@@ -150,6 +150,7 @@ def validate_file_upload(
     Returns:
         Un tuple (est_valide, message_erreur_optionnel).
     """
+    filename = os.path.basename(filename.strip()) if filename else ""
     if not filename or not file_bytes:
         return False, "Le fichier est vide ou invalide."
 

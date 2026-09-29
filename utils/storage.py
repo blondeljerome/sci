@@ -6,6 +6,7 @@ Utilise Cloudinary comme backend de stockage cloud persistant.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional, Tuple
 
 import cloudinary
@@ -52,7 +53,8 @@ def upload_file(
         ValueError: Si le fichier ne respecte pas les critères de format.
         RuntimeError: Si Cloudinary n'est pas configuré.
     """
-    is_valid, err_msg = validate_file_upload(original_filename, file_bytes)
+    clean_filename = os.path.basename(original_filename.strip())
+    is_valid, err_msg = validate_file_upload(clean_filename, file_bytes)
     if not is_valid:
         raise ValueError(err_msg or "Fichier invalide pour téléversement.")
 

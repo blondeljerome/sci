@@ -50,7 +50,7 @@ st.markdown(
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
                      Roboto, Helvetica, Arial, sans-serif;
     }
-    
+
     div[data-testid="stMetric"] {
         background: #ffffff;
         border: 1px solid #e2e8f0;
@@ -63,23 +63,23 @@ st.markdown(
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
-    
+
     section[data-testid="stSidebar"] {
         background-color: #f8fafc;
         border-right: 1px solid #e2e8f0;
     }
-    
+
     .stButton > button {
         border-radius: 8px;
         font-weight: 500;
         transition: all 0.2s ease;
     }
-    
+
     h1, h2, h3 {
         color: #0f172a;
         font-weight: 700;
     }
-    
+
     .badge {
         display: inline-block;
         padding: 4px 10px;
@@ -183,7 +183,7 @@ if "authenticated_user" not in st.session_state:
             **Accès autorisés pour les associés :**
             - Identifiants configurés : `jerome` ou `claire`
             - Mot de passe initial : `sci2026!`
-            
+
             *Une fois connecté, vous pourrez modifier votre mot de passe
             dans **Paramètres > Sécurité & Utilisateurs**.*
             """)

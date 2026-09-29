@@ -118,7 +118,7 @@ def record_full_payment(
     """
     p = query_one(
         """
-        SELECT rp.*, 
+        SELECT rp.*,
                t.first_name, t.last_name, t.email,
                p.name as property_name, p.address as prop_address,
                p.city as prop_city, p.postal_code as prop_postal
@@ -138,7 +138,7 @@ def record_full_payment(
 
     execute_write(
         """
-        UPDATE rent_payments 
+        UPDATE rent_payments
         SET amount_paid = total_due, payment_date = ?, status = ?
         WHERE id = ?;
     """,
@@ -187,7 +187,7 @@ def get_monthly_payments(month: int, year: int) -> List[Dict[str, Any]]:
     """
     return query_rows(
         """
-        SELECT rp.*, 
+        SELECT rp.*,
                t.first_name, t.last_name, t.email,
                p.name as property_name, p.address as prop_address,
                p.city as prop_city, p.postal_code as prop_postal,

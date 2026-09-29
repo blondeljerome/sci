@@ -25,8 +25,8 @@ def get_irl_indices_data() -> Tuple[List[str], Dict[str, float]]:
     """
     rows = query_rows(
         """
-        SELECT quarter, value 
-        FROM irl_indices 
+        SELECT quarter, value
+        FROM irl_indices
         ORDER BY CAST(SUBSTR(quarter, 4, 4) AS INTEGER) DESC,
                  CAST(SUBSTR(quarter, 2, 1) AS INTEGER) DESC;
     """

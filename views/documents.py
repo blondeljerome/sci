@@ -108,15 +108,15 @@ def render_documents() -> None:
     ):
         st.markdown(
             """
-            **Pourquoi un lien Cloudinary peut afficher `401 Unauthorized` ?**  
+            **Pourquoi un lien Cloudinary peut afficher `401 Unauthorized` ?**
             Par défaut, Cloudinary désactive la distribution des fichiers `.pdf`
             et `.zip` pour des raisons de sécurité sur les comptes récents.
 
-            👉 **Pour activer l'ouverture directe dans un nouvel onglet :**  
+            👉 **Pour activer l'ouverture directe dans un nouvel onglet :**
             1. Rendez-vous sur votre console Cloudinary :
-               [console](https://cloudinary.com/console).  
-            2. Ouvrez **Settings (⚙️)** > onglet **Security**.  
-            3. Cochez **« Allow delivery of PDF and ZIP files »** et validez.  
+               [console](https://cloudinary.com/console).
+            2. Ouvrez **Settings (⚙️)** > onglet **Security**.
+            3. Cochez **« Allow delivery of PDF and ZIP files »** et validez.
 
             ✨ **Téléchargement direct dans l'application :** Les boutons
             **« ⬇️ Télécharger »** ci-dessous fonctionnent directement et
@@ -159,7 +159,7 @@ def render_documents() -> None:
     with tab_vault:
         # Requête complète avec jointures properties, tenants et loans
         docs = query_rows("""
-            SELECT 
+            SELECT
                 d.*,
                 p.id AS prop_id,
                 p.name AS prop_name,

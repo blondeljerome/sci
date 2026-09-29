@@ -120,9 +120,9 @@ def render_legal() -> None:
                 # Vérifier si déjà archivé dans la GED
                 existing_doc = query_one(
                     """
-                    SELECT id, file_path, cloudinary_public_id FROM documents 
-                    WHERE category = ? 
-                      AND tenant_id = ? 
+                    SELECT id, file_path, cloudinary_public_id FROM documents
+                    WHERE category = ?
+                      AND tenant_id = ?
                       AND notes LIKE ?;
                 """,
                     [
@@ -233,7 +233,7 @@ def render_legal() -> None:
     with tab_relances:
         st.markdown("#### Gestion des Impayés & Courriers de Relance")
         unpaid = query_rows("""
-            SELECT rp.*, 
+            SELECT rp.*,
                    t.first_name, t.last_name, t.email, t.guarantor_info,
                    p.name as property_name, p.address as prop_address,
                    p.city as prop_city, p.postal_code as prop_postal
@@ -337,8 +337,8 @@ def render_legal() -> None:
 
         # Affichage des indices enregistrés triés chronologiquement
         indices = query_rows("""
-            SELECT quarter, value, published_date 
-            FROM irl_indices 
+            SELECT quarter, value, published_date
+            FROM irl_indices
             ORDER BY CAST(SUBSTR(quarter, 4, 4) AS INTEGER) DESC,
                      CAST(SUBSTR(quarter, 2, 1) AS INTEGER) DESC;
         """)
@@ -510,7 +510,7 @@ def render_legal() -> None:
                     ):
                         execute_write(
                             """
-                            UPDATE tenants 
+                            UPDATE tenants
                             SET rent_amount = ?, irl_reference_quarter = ?,
                                 irl_reference_value = ?, last_revision_date = ?
                             WHERE id = ?;

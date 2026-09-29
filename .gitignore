@@ -12,13 +12,18 @@ __pycache__/
 env/
 venv/
 ENV/
+.ruff_cache/
+.pytest_cache/
 
 # Local databases & uploads
 data/
 *.db
+*.sqlite
 *.sqlite3
+*.sql
+!schema.sql
 
-# IDE
+# IDE & OS
 .vscode/
 .idea/
 .DS_Store

@@ -4,6 +4,7 @@ Conforme aux dispositions de la loi n° 89-462 du 6 juillet 1989.
 Permet la génération et l'archivage automatique dans la GED.
 """
 
+import html
 import io
 from datetime import date
 from typing import Any, Dict, Optional, Tuple
@@ -58,7 +59,26 @@ def generate_quittance_html(
     )[:10]
     pay_method = payment.get("payment_method", "Virement bancaire")
 
-    html = f"""<!DOCTYPE html>
+    def _esc(val: Any) -> str:
+        return html.escape(str(val)) if val is not None else ""
+
+    sci_name = _esc(sci_info.get("name", "SCI"))
+    sci_siren = _esc(sci_info.get("siren", ""))
+    sci_address = _esc(sci_info.get("address", ""))
+    sci_postal = _esc(sci_info.get("postal_code", ""))
+    sci_city = _esc(sci_info.get("city", ""))
+    sci_manager = _esc(sci_info.get("manager_name", ""))
+    sci_email = _esc(sci_info.get("manager_email", ""))
+
+    tenant_fn = _esc(tenant.get("first_name", ""))
+    tenant_ln = _esc(tenant.get("last_name", ""))
+    prop_name = _esc(property_info.get("name", ""))
+    prop_addr = _esc(property_info.get("address", ""))
+    prop_postal = _esc(property_info.get("postal_code", ""))
+    prop_city = _esc(property_info.get("city", ""))
+    pay_method_esc = _esc(pay_method)
+
+    html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -207,33 +227,24 @@ def generate_quittance_html(
     <div class="grid-2">
         <div class="box">
             <h3>Bailleur</h3>
-            <strong>{sci_info.get("name", "SCI")}</strong><br>
-            {
-                f"SIREN : {sci_info.get('siren')}<br>"
-                if sci_info.get("siren") else ""
-            }
-            {sci_info.get("address", "")}<br>
-            {sci_info.get("postal_code", "")} {sci_info.get("city", "")}<br>
-            {
-                f"Gérant : {sci_info.get('manager_name')}<br>"
-                if sci_info.get("manager_name") else ""
-            }
-            {
-                f"Contact : {sci_info.get('manager_email')}"
-                if sci_info.get("manager_email") else ""
-            }
+            <strong>{sci_name}</strong><br>
+            {f"SIREN : {sci_siren}<br>" if sci_siren else ""}
+            {sci_address}<br>
+            {sci_postal} {sci_city}<br>
+            {f"Gérant : {sci_manager}<br>" if sci_manager else ""}
+            {f"Contact : {sci_email}" if sci_email else ""}
         </div>
 
         <div class="box">
             <h3>Locataire</h3>
             <strong>
-                {tenant.get("first_name", "")} {tenant.get("last_name", "")}
+                {tenant_fn} {tenant_ln}
             </strong><br>
             Logement loué :<br>
-            {property_info.get("name", "")}<br>
-            {property_info.get("address", "")}<br>
-            {property_info.get("postal_code", "")}
-            {property_info.get("city", "")}
+            {prop_name}<br>
+            {prop_addr}<br>
+            {prop_postal}
+            {prop_city}
         </div>
     </div>
 
@@ -268,7 +279,8 @@ def generate_quittance_html(
         <strong>
             {tenant.get("first_name", "")} {tenant.get("last_name", "")}
         </strong>
-        la somme de <strong>{paid:.2f} €</strong> (règlement par {pay_method}),
+        la somme de <strong>{paid:.2f} €</strong>
+        (règlement par {pay_method_esc}),
         pour loyer et charges du terme de <strong>{period_str}</strong> et lui
         en donne quittance, sous réserve de tous droits et décomptes ultérieurs.
     </div>
@@ -279,7 +291,7 @@ def generate_quittance_html(
             de la même période. À conserver sans limitation de durée.</em>
         </div>
         <div class="signature-box">
-            Fait à {sci_info.get("city", "Paris")}, le {pay_date}<br>
+            Fait à {sci_city or "Paris"}, le {pay_date}<br>
             <strong>Le Bailleur / Le Gérant</strong>
             <div class="signature-space"></div>
         </div>
@@ -289,7 +301,7 @@ def generate_quittance_html(
 </body>
 </html>
 """
-    return html
+    return html_content
 
 
 def generate_quittance_pdf(
@@ -714,9 +726,9 @@ def save_quittance_to_ged(
         if not existing_row:
             existing_row = query_one(
                 """
-                SELECT id, cloudinary_public_id FROM documents 
-                WHERE category = 'Quittance & Reçu de paiement' 
-                  AND tenant_id = ? 
+                SELECT id, cloudinary_public_id FROM documents
+                WHERE category = 'Quittance & Reçu de paiement'
+                  AND tenant_id = ?
                   AND notes LIKE ?;
             """,
                 [tenant_id, f"%Échéance #{payment_id}%"],

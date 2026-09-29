@@ -6,6 +6,7 @@
   (PV d'AGO annuelle d'approbation des comptes)
 """
 
+import html
 import io
 from datetime import date
 from typing import Any, Dict, Optional, Tuple
@@ -27,6 +28,11 @@ from utils import storage
 from utils.formatters import MONTH_NAMES_FR
 
 MONTH_NAMES = [""] + MONTH_NAMES_FR
+
+
+def _esc(val: Any) -> str:
+    """Échappe une chaîne pour prévenir les injections XSS."""
+    return html.escape(str(val)) if val is not None else ""
 
 
 # 1. AVIS D'ECHEANCE / APPEL DE LOYER
@@ -67,17 +73,17 @@ def generate_avis_echeance_html(
         else tenant.get("charges_provision", 0.0) or 0.0
     )
     total = rent + charges
-    t_last_upper = tenant.get("last_name", "").upper()
-    t_first = tenant.get("first_name", "")
+    t_last_upper = _esc(tenant.get("last_name", "").upper())
+    t_first = _esc(tenant.get("first_name", ""))
     tenant_name = f"{t_first} {t_last_upper}".strip()
-    p_addr = property_info.get("address", "")
-    p_zip = property_info.get("postal_code", "")
-    p_city = property_info.get("city", "")
-    sci_name = sci_info.get("name", "SCI")
-    iban_val = sci_info.get("iban") or "À renseigner dans les Paramètres"
-    bic_val = sci_info.get("bic") or ""
+    p_addr = _esc(property_info.get("address", ""))
+    p_zip = _esc(property_info.get("postal_code", ""))
+    p_city = _esc(property_info.get("city", ""))
+    sci_name = _esc(sci_info.get("name", "SCI"))
+    iban_val = _esc(sci_info.get("iban") or "À renseigner dans les Paramètres")
+    bic_val = _esc(sci_info.get("bic") or "")
 
-    html = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -252,7 +258,7 @@ def generate_avis_echeance_html(
 </body>
 </html>
 """
-    return html
+    return html_content
 
 
 def generate_avis_echeance_pdf(
@@ -834,13 +840,13 @@ def generate_relance_amiable_html(
     balance = float(payment_record.get("total_due", 0.0)) - float(
         payment_record.get("amount_paid", 0.0)
     )
-    t_first = tenant.get("first_name", "")
-    t_last = (tenant.get("last_name") or "").upper()
-    sci_name = sci_info.get("name", "SCI")
-    prop_addr = property_info.get("address", "")
-    due_date = payment_record.get("due_date", "")
+    t_first = _esc(tenant.get("first_name", ""))
+    t_last = _esc((tenant.get("last_name") or "").upper())
+    sci_name = _esc(sci_info.get("name", "SCI"))
+    prop_addr = _esc(property_info.get("address", ""))
+    due_date = _esc(payment_record.get("due_date", ""))
 
-    html = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -951,7 +957,7 @@ def generate_relance_amiable_html(
 </body>
 </html>
 """
-    return html
+    return html_content
 
 
 # 3. MISE EN DEMEURE FORMELLE (J+21 - LRAR)
@@ -978,13 +984,15 @@ def generate_mise_en_demeure_html(
     balance = float(payment_record.get("total_due", 0.0)) - float(
         payment_record.get("amount_paid", 0.0)
     )
-    t_first = tenant.get("first_name", "")
-    t_last = (tenant.get("last_name") or "").upper()
-    sci_name = sci_info.get("name", "SCI")
-    prop_addr = property_info.get("address", "")
-    guarantor_str = tenant.get("guarantor_info") or "caution solidaire"
+    t_first = _esc(tenant.get("first_name", ""))
+    t_last = _esc((tenant.get("last_name") or "").upper())
+    sci_name = _esc(sci_info.get("name", "SCI"))
+    prop_addr = _esc(property_info.get("address", ""))
+    guarantor_str = _esc(
+        tenant.get("guarantor_info") or "caution solidaire"
+    )
 
-    html = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1098,7 +1106,7 @@ def generate_mise_en_demeure_html(
 </body>
 </html>
 """
-    return html
+    return html_content
 
 
 # 4. PROCES-VERBAL D'ASSEMBLEE GENERALE ORDINAIRE (PV D'AGO)
@@ -1129,16 +1137,16 @@ def generate_pv_ago_html(
     Returns:
         str: Code HTML complet du procès-verbal d'AGO.
     """
-    sci_name = sci_info.get("name", "SCI")
-    manager_str = sci_info.get("manager_name") or "la Gérance"
-    siren_str = sci_info.get("siren") or "En cours d'immatriculation"
-    addr_str = (
+    sci_name = _esc(sci_info.get("name", "SCI"))
+    manager_str = _esc(sci_info.get("manager_name") or "la Gérance")
+    siren_str = _esc(sci_info.get("siren") or "En cours d'immatriculation")
+    addr_str = _esc(
         f"{sci_info.get('address', '')}, "
         f"{sci_info.get('postal_code', '')} {sci_info.get('city', '')}"
     )
     result_kind = "Bénéfice" if net_result >= 0 else "Perte"
 
-    html = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1271,4 +1279,4 @@ def generate_pv_ago_html(
 </body>
 </html>
 """
-    return html
+    return html_content

@@ -131,7 +131,7 @@ def get_properties_with_tenants() -> List[Dict[str, Any]]:
         Liste de dictionnaires représentant les biens et locataires en place.
     """
     return query_rows("""
-        SELECT p.*, 
+        SELECT p.*,
                t.first_name || ' ' || t.last_name as current_tenant,
                t.rent_amount as current_rent,
                t.charges_provision as current_charges

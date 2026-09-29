@@ -505,7 +505,7 @@ def render_properties() -> None:
                     if save_btn:
                         execute_write(
                             """
-                            UPDATE properties 
+                            UPDATE properties
                             SET name=?, type=?, address=?, city=?,
                                 postal_code=?, surface=?, rooms=?, floor=?,
                                 door_number=?, tantiemes=?, acquisition_price=?,
